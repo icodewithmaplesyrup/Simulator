@@ -712,6 +712,7 @@ table.stat-table tr.subdiv-row td { background: var(--surface2); padding-left: 2
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="data.js"></script>
 <script>
 // ─────────────────────────────────────────────────────────
 // GLOBALS
@@ -728,7 +729,20 @@ let gameState = {
   totalSubdivs: 0
 };
 let autoTimer = null;
+let qwenPipe = null; // Legacy guard for old AI code paths
 const speedDelays = [0, 4000, 2000, 1000, 400];
+
+// Safety shim: if data.js fails to load or doesn't define getDbData,
+// provide a local fallback lookup.
+if (typeof getDbData !== 'function') {
+  window.getDbData = function(name) {
+    const key = String(name || '').trim().toLowerCase();
+    if (!key || typeof WORLD_DATA === 'undefined' || !WORLD_DATA) return null;
+    const aliases = (typeof ALIASES !== 'undefined' && ALIASES) ? ALIASES : {};
+    const resolved = aliases[key] || key;
+    return WORLD_DATA[resolved] || null;
+  };
+}
 
 const NATION_COLORS = [
   '#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6',
@@ -785,293 +799,6 @@ const OSM_ADMIN_LEVELS = {
 //  - Somaliland, Transnistria, South Ossetia, Abkhazia: excluded.
 //  - UAE (ARE, rel 307763) included with aliases 'uae' and 'emirates'.
 // ─────────────────────────────────────────────────────────
-const COUNTRY_OSM = {
-
-  // ═══════════════════════════
-  // EUROPE
-  // ═══════════════════════════
-  'albania': { iso: 'ALB', rel: 53292 },
-  'andorra': { iso: 'AND', rel: 9407 },
-  'austria': { iso: 'AUT', rel: 16239 },
-  'belarus': { iso: 'BLR', rel: 59065 },
-  'belgium': { iso: 'BEL', rel: 52411 },
-  'bosnia': { iso: 'BIH', rel: 2528142 },
-  'bosnia and herzegovina': { iso: 'BIH', rel: 2528142 },
-  'bulgaria': { iso: 'BGR', rel: 186382 },
-  'croatia': { iso: 'HRV', rel: 214885 },
-  'cyprus': { iso: 'CYP', rel: 307787 },       // unified Republic of Cyprus
-  'czechia': { iso: 'CZE', rel: 51684 },
-  'czech republic': { iso: 'CZE', rel: 51684 },
-  'denmark': { iso: 'DNK', rel: 50046 },
-  'estonia': { iso: 'EST', rel: 79510 },
-  'finland': { iso: 'FIN', rel: 54224 },
-  'france': { iso: 'FRA', rel: 2202162 },
-  'germany': { iso: 'DEU', rel: 51477 },
-  'greece': { iso: 'GRC', rel: 192307 },
-  'hungary': { iso: 'HUN', rel: 21335 },
-  'iceland': { iso: 'ISL', rel: 299133 },
-  'ireland': { iso: 'IRL', rel: 62273 },
-  'italy': { iso: 'ITA', rel: 365331 },
-  'kosovo': { iso: 'XKX', rel: 2088990 },       // partially recognised; Nominatim fallback if ID stale
-  'latvia': { iso: 'LVA', rel: 72594 },
-  'liechtenstein': { iso: 'LIE', rel: 1155955 },
-  'lithuania': { iso: 'LTU', rel: 72596 },
-  'luxembourg': { iso: 'LUX', rel: 2171347 },
-  'malta': { iso: 'MLT', rel: 365307 },
-  'moldova': { iso: 'MDA', rel: 58974 },
-  'monaco': { iso: 'MCO', rel: 1124039 },
-  'montenegro': { iso: 'MNE', rel: 53296 },
-  'netherlands': { iso: 'NLD', rel: 47796 },
-  'holland': { iso: 'NLD', rel: 47796 },
-  'north macedonia': { iso: 'MKD', rel: 53293 },
-  'macedonia': { iso: 'MKD', rel: 53293 },
-  'norway': { iso: 'NOR', rel: 2978650 },
-  'poland': { iso: 'POL', rel: 49715 },
-  'portugal': { iso: 'PRT', rel: 295480 },
-  'romania': { iso: 'ROU', rel: 90689 },
-  'russia': { iso: 'RUS', rel: 60189 },
-  'san marino': { iso: 'SMR', rel: 54624 },
-  'serbia': { iso: 'SRB', rel: 1741311 },
-  'slovakia': { iso: 'SVK', rel: 14296 },
-  'slovenia': { iso: 'SVN', rel: 218657 },
-  'spain': { iso: 'ESP', rel: 1311341 },
-  'sweden': { iso: 'SWE', rel: 52822 },
-  'switzerland': { iso: 'CHE', rel: 51701 },
-  'ukraine': { iso: 'UKR', rel: 60199 },
-  'uk': { iso: 'GBR', rel: 62149 },
-  'united kingdom': { iso: 'GBR', rel: 62149 },
-  'britain': { iso: 'GBR', rel: 62149 },
-  'great britain': { iso: 'GBR', rel: 62149 },
-  'vatican': { iso: 'VAT', rel: 36989 },
-  'vatican city': { iso: 'VAT', rel: 36989 },
-  'holy see': { iso: 'VAT', rel: 36989 },
-
-  // Sub-national British Isles (kept from original)
-  'england': { iso: 'GBR', rel: 58447, isRegion: true },
-  'scotland': { iso: 'GBR', rel: 58446, isRegion: true },
-  'wales': { iso: 'GBR', rel: 58437, isRegion: true },
-  'northern ireland': { iso: 'GBR', rel: 156393, isRegion: true },
-  'cornwall': { iso: 'GBR', rel: 51313, isRegion: true },
-  'brittany': { iso: 'FRA', rel: 102740, isRegion: true },
-  'catalonia': { iso: 'ESP', rel: 349035, isRegion: true },
-  'basque country': { iso: 'ESP', rel: 349036, isRegion: true },
-  'galicia': { iso: 'ESP', rel: 349037, isRegion: true },
-  'sicily': { iso: 'ITA', rel: 39152, isRegion: true },
-  'sardinia': { iso: 'ITA', rel: 254122, isRegion: true },
-  'bavaria': { iso: 'DEU', rel: 2145268, isRegion: true },
-  'flanders': { iso: 'BEL', rel: 53134, isRegion: true },
-  'wallonia': { iso: 'BEL', rel: 90348, isRegion: true },
-  'lombardy': { iso: 'ITA', rel: 44879, isRegion: true },
-  'veneto': { iso: 'ITA', rel: 44882, isRegion: true },
-  'andalusia': { iso: 'ESP', rel: 349033, isRegion: true },
-
-  // ═══════════════════════════
-  // ASIA
-  // ═══════════════════════════
-  'afghanistan': { iso: 'AFG', rel: 303427 },
-  'armenia': { iso: 'ARM', rel: 364066 },
-  'azerbaijan': { iso: 'AZE', rel: 364110 },
-  'bahrain': { iso: 'BHR', rel: 378734 },
-  'bangladesh': { iso: 'BGD', rel: 184640 },
-  'bhutan': { iso: 'BTN', rel: 184629 },
-  'brunei': { iso: 'BRN', rel: 388100 },
-  'cambodia': { iso: 'KHM', rel: 49181 },
-  'china': { iso: 'CHN', rel: 270056 },
-  "people's republic of china": { iso: 'CHN', rel: 270056 },
-  'prc': { iso: 'CHN', rel: 270056 },
-  'georgia': { iso: 'GEO', rel: 28699 },
-  'india': { iso: 'IND', rel: 304716 },
-  'indonesia': { iso: 'IDN', rel: 304751 },
-  'iran': { iso: 'IRN', rel: 304938 },
-  'iraq': { iso: 'IRQ', rel: 304934 },
-  'israel': { iso: 'ISR', rel: 1473946 },
-  'japan': { iso: 'JPN', rel: 382313 },
-  'jordan': { iso: 'JOR', rel: 184818 },
-  'kazakhstan': { iso: 'KAZ', rel: 214665 },
-  'kuwait': { iso: 'KWT', rel: 305099 },
-  'kyrgyzstan': { iso: 'KGZ', rel: 178009 },
-  'laos': { iso: 'LAO', rel: 49903 },
-  'lebanon': { iso: 'LBN', rel: 184843 },
-  'malaysia': { iso: 'MYS', rel: 2108121 },
-  'maldives': { iso: 'MDV', rel: 536773 },
-  'mongolia': { iso: 'MNG', rel: 161033 },
-  'myanmar': { iso: 'MMR', rel: 50371 },
-  'burma': { iso: 'MMR', rel: 50371 },
-  'nepal': { iso: 'NPL', rel: 184633 },
-  'north korea': { iso: 'PRK', rel: 192734 },
-  'dprk': { iso: 'PRK', rel: 192734 },
-  'oman': { iso: 'OMN', rel: 305138 },
-  'pakistan': { iso: 'PAK', rel: 307573 },
-  'palestine': { iso: 'PSE', rel: 1703814 },    // State of Palestine (West Bank + Gaza)
-  'state of palestine': { iso: 'PSE', rel: 1703814 },
-  'philippines': { iso: 'PHL', rel: 443174 },
-  'qatar': { iso: 'QAT', rel: 305095 },
-  'saudi arabia': { iso: 'SAU', rel: 307763 },
-  'singapore': { iso: 'SGP', rel: 536780 },
-  'south korea': { iso: 'KOR', rel: 307756 },
-  'republic of korea': { iso: 'KOR', rel: 307756 },
-  'sri lanka': { iso: 'LKA', rel: 536807 },
-  'syria': { iso: 'SYR', rel: 184840 },
-  'taiwan': { iso: 'TWN', rel: 449220 },        // Republic of China / Taiwan
-  'republic of china': { iso: 'TWN', rel: 449220 },
-  'roc': { iso: 'TWN', rel: 449220 },
-  'tajikistan': { iso: 'TJK', rel: 214626 },
-  'thailand': { iso: 'THA', rel: 2067731 },
-  'timor-leste': { iso: 'TLS', rel: 305142 },
-  'east timor': { iso: 'TLS', rel: 305142 },
-  'turkey': { iso: 'TUR', rel: 174737 },
-  'turkiye': { iso: 'TUR', rel: 174737 },
-  'turkmenistan': { iso: 'TKM', rel: 223026 },
-  'united arab emirates': { iso: 'ARE', rel: 307763 },
-  'uae': { iso: 'ARE', rel: 307763 },
-  'emirates': { iso: 'ARE', rel: 307763 },
-  'uzbekistan': { iso: 'UZB', rel: 196240 },
-  'vietnam': { iso: 'VNM', rel: 49915 },
-  'yemen': { iso: 'YEM', rel: 305092 },
-
-  // ═══════════════════════════
-  // AFRICA
-  // ═══════════════════════════
-  'algeria': { iso: 'DZA', rel: 192756 },
-  'angola': { iso: 'AGO', rel: 195267 },
-  'benin': { iso: 'BEN', rel: 192784 },
-  'botswana': { iso: 'BWA', rel: 1889339 },
-  'burkina faso': { iso: 'BFA', rel: 192783 },
-  'burundi': { iso: 'BDI', rel: 195269 },
-  'cabo verde': { iso: 'CPV', rel: 535774 },
-  'cape verde': { iso: 'CPV', rel: 535774 },
-  'cameroon': { iso: 'CMR', rel: 192830 },
-  'central african republic': { iso: 'CAF', rel: 192790 },
-  'chad': { iso: 'TCD', rel: 2361304 },
-  'comoros': { iso: 'COM', rel: 535790 },
-  'congo': { iso: 'COG', rel: 192794 },         // Republic of Congo (Brazzaville)
-  'republic of congo': { iso: 'COG', rel: 192794 },
-  'congo-brazzaville': { iso: 'COG', rel: 192794 },
-  'drc': { iso: 'COD', rel: 192795 },           // Democratic Republic of Congo (Kinshasa)
-  'democratic republic of congo': { iso: 'COD', rel: 192795 },
-  'congo-kinshasa': { iso: 'COD', rel: 192795 },
-  'dr congo': { iso: 'COD', rel: 192795 },
-  'djibouti': { iso: 'DJI', rel: 192797 },
-  'egypt': { iso: 'EGY', rel: 1473947 },
-  'equatorial guinea': { iso: 'GNQ', rel: 192791 },
-  'eritrea': { iso: 'ERI', rel: 296961 },
-  'eswatini': { iso: 'SWZ', rel: 88210 },
-  'swaziland': { iso: 'SWZ', rel: 88210 },
-  'ethiopia': { iso: 'ETH', rel: 192800 },
-  'gabon': { iso: 'GAB', rel: 192793 },
-  'gambia': { iso: 'GMB', rel: 192776 },
-  'the gambia': { iso: 'GMB', rel: 192776 },
-  'ghana': { iso: 'GHA', rel: 192781 },
-  'guinea': { iso: 'GIN', rel: 192778 },
-  'guinea-bissau': { iso: 'GNB', rel: 192773 },
-  'ivory coast': { iso: 'CIV', rel: 192779 },
-  "côte d'ivoire": { iso: 'CIV', rel: 192779 },
-  "cote d'ivoire": { iso: 'CIV', rel: 192779 },
-  'kenya': { iso: 'KEN', rel: 192798 },
-  'lesotho': { iso: 'LSO', rel: 2093234 },
-  'liberia': { iso: 'LBR', rel: 192780 },
-  'libya': { iso: 'LBY', rel: 192758 },
-  'madagascar': { iso: 'MDG', rel: 447325 },
-  'malawi': { iso: 'MWI', rel: 195290 },
-  'mali': { iso: 'MLI', rel: 192785 },
-  'mauritania': { iso: 'MRT', rel: 192763 },
-  'mauritius': { iso: 'MUS', rel: 535828 },
-  'morocco': { iso: 'MAR', rel: 3630439 },
-  'mozambique': { iso: 'MOZ', rel: 195273 },
-  'namibia': { iso: 'NAM', rel: 195266 },
-  'niger': { iso: 'NER', rel: 192786 },
-  'nigeria': { iso: 'NGA', rel: 192787 },
-  'rwanda': { iso: 'RWA', rel: 171496 },
-  'sao tome and principe': { iso: 'STP', rel: 535880 },
-  'senegal': { iso: 'SEN', rel: 192775 },
-  'sierra leone': { iso: 'SLE', rel: 192777 },
-  'somalia': { iso: 'SOM', rel: 164477 },
-  'south africa': { iso: 'ZAF', rel: 87565 },
-  'south sudan': { iso: 'SSD', rel: 1656678 },
-  'sudan': { iso: 'SDN', rel: 192789 },
-  'tanzania': { iso: 'TZA', rel: 195270 },
-  'togo': { iso: 'TGO', rel: 192782 },
-  'tunisia': { iso: 'TUN', rel: 192757 },
-  'uganda': { iso: 'UGA', rel: 192796 },
-  'western sahara': { iso: 'ESH', rel: 5441968 }, // SADR / occupied by Morocco
-  'zambia': { iso: 'ZMB', rel: 195271 },
-  'zimbabwe': { iso: 'ZWE', rel: 195272 },
-
-  // ═══════════════════════════
-  // AMERICAS
-  // ═══════════════════════════
-  'antigua and barbuda': { iso: 'ATG', rel: 536900 },
-  'antigua': { iso: 'ATG', rel: 536900 },
-  'argentina': { iso: 'ARG', rel: 286393 },
-  'bahamas': { iso: 'BHS', rel: 547469 },
-  'barbados': { iso: 'BRB', rel: 547511 },
-  'belize': { iso: 'BLZ', rel: 287827 },
-  'bolivia': { iso: 'BOL', rel: 252645 },
-  'brazil': { iso: 'BRA', rel: 59470 },
-  'canada': { iso: 'CAN', rel: 1428125 },
-  'chile': { iso: 'CHL', rel: 167454 },
-  'colombia': { iso: 'COL', rel: 120027 },
-  'costa rica': { iso: 'CRI', rel: 287926 },
-  'cuba': { iso: 'CUB', rel: 307833 },
-  'dominica': { iso: 'DMA', rel: 550970 },
-  'dominican republic': { iso: 'DOM', rel: 307828 },
-  'ecuador': { iso: 'ECU', rel: 108089 },
-  'el salvador': { iso: 'SLV', rel: 1520612 },
-  'grenada': { iso: 'GRD', rel: 550978 },
-  'guatemala': { iso: 'GTM', rel: 1521463 },
-  'guyana': { iso: 'GUY', rel: 287083 },
-  'haiti': { iso: 'HTI', rel: 307829 },
-  'honduras': { iso: 'HND', rel: 287665 },
-  'jamaica': { iso: 'JAM', rel: 555717 },
-  'mexico': { iso: 'MEX', rel: 114686 },
-  'nicaragua': { iso: 'NIC', rel: 287666 },
-  'panama': { iso: 'PAN', rel: 287668 },
-  'paraguay': { iso: 'PRY', rel: 287077 },
-  'peru': { iso: 'PER', rel: 288247 },
-  'saint kitts and nevis': { iso: 'KNA', rel: 536899 },
-  'saint lucia': { iso: 'LCA', rel: 550910 },
-  'saint vincent': { iso: 'VCT', rel: 550921 },
-  'saint vincent and the grenadines': { iso: 'VCT', rel: 550921 },
-  'suriname': { iso: 'SUR', rel: 287082 },
-  'trinidad and tobago': { iso: 'TTO', rel: 555718 },
-  'trinidad': { iso: 'TTO', rel: 555718 },
-  'uruguay': { iso: 'URY', rel: 287072 },
-  'usa': { iso: 'USA', rel: 148838 },
-  'united states': { iso: 'USA', rel: 148838 },
-  'us': { iso: 'USA', rel: 148838 },
-  'america': { iso: 'USA', rel: 148838 },
-  'venezuela': { iso: 'VEN', rel: 272644 },
-
-  // US sub-national (kept from original)
-  'texas': { iso: 'USA', rel: 114690 },
-  'california': { iso: 'USA', rel: 61965 },
-  'new york': { iso: 'USA', rel: 61320 },
-  'florida': { iso: 'USA', rel: 162050 },
-  'quebec': { iso: 'CAN', rel: 61549 },
-  'ontario': { iso: 'CAN', rel: 68841 },
-
-  // ═══════════════════════════
-  // OCEANIA
-  // ═══════════════════════════
-  'australia': { iso: 'AUS', rel: 80500 },
-  'cook islands': { iso: 'COK', rel: 2184233 },
-  'fiji': { iso: 'FJI', rel: 571747 },
-  'kiribati': { iso: 'KIR', rel: 571178 },
-  'marshall islands': { iso: 'MHL', rel: 571771 },
-  'micronesia': { iso: 'FSM', rel: 571802 },
-  'nauru': { iso: 'NRU', rel: 571805 },
-  'new zealand': { iso: 'NZL', rel: 556706 },
-  'niue': { iso: 'NIU', rel: 1558556 },
-  'palau': { iso: 'PLW', rel: 1041559 },
-  'papua new guinea': { iso: 'PNG', rel: 307866 },
-  'png': { iso: 'PNG', rel: 307866 },
-  'samoa': { iso: 'WSM', rel: 1872673 },
-  'solomon islands': { iso: 'SLB', rel: 1857436 },
-  'tonga': { iso: 'TON', rel: 2186458 },
-  'tuvalu': { iso: 'TUV', rel: 2177266 },
-  'vanuatu': { iso: 'VUT', rel: 1143258 },
-};
-
 // ─────────────────────────────────────────────────────────
 // SCREEN MANAGEMENT
 // ─────────────────────────────────────────────────────────
@@ -1118,36 +845,65 @@ window.beginSetup = async function() {
   showScreen('screen-loading');
   setProgress(0, 'Resolving nation names...');
 
-  const resolvedNations = await resolveNations(names);
-  setProgress(15, 'Fetching subdivision polygons from OpenStreetMap...');
+  try {
+    const resolvedNations = await resolveNations(names);
+    setProgress(15, 'Fetching subdivision polygons from OpenStreetMap...');
 
-  await fetchAllPolygons(resolvedNations);
-  setProgress(70, 'Assigning stats...');
+    await fetchAllPolygons(resolvedNations);
+    setProgress(70, 'Assigning stats...');
 
-  for (const n of resolvedNations) {
-    if (n.subdivisions.length === 1 && n.subdivisions[0].id === n.id + '_main') {
-      await generateAISubdivisions(n);
-    }
-  }
-
-  if (statsMode === 'fast') {
     for (const n of resolvedNations) {
-      for (const sd of n.subdivisions) {
-        sd.stats = heuristicStats(sd.name, n.label);
+      if (Array.isArray(n.subdivisionsData) && n.subdivisionsData.length > 0 && (!Array.isArray(n.subdivisions) || n.subdivisions.length === 0 || (n.subdivisions.length === 1 && n.subdivisions[0].id === n.id + '_main'))) {
+        n.subdivisions = n.subdivisionsData.map((sd) => ({
+          id: 'sd_' + sd.relId,
+          nationId: n.id,
+          originalNationId: n.id,
+          name: sd.name,
+          geojson: null,
+          stats: {
+            military: sd.military,
+            population: sd.population,
+            naval: sd.naval,
+            landlocked: sd.landlocked,
+            fromDb: true
+          }
+        }));
+        continue;
+      }
+
+      if (!Array.isArray(n.subdivisions) || n.subdivisions.length === 0 || (n.subdivisions.length === 1 && n.subdivisions[0].id === n.id + '_main')) {
+        await generateAISubdivisions(n);
       }
     }
-  } else {
-    for (const n of resolvedNations) {
-      for (const sd of n.subdivisions) {
-        sd.stats = { military: 50, population: 500000, naval: false, landlocked: false };
+
+    if (statsMode === 'fast') {
+      for (const n of resolvedNations) {
+        for (const sd of n.subdivisions) {
+          if (sd.stats?.fromDb) continue;
+          sd.stats = heuristicStats(sd.name, n.label);
+        }
+      }
+    } else {
+      for (const n of resolvedNations) {
+        for (const sd of n.subdivisions) {
+          if (sd.stats?.fromDb) continue;
+          sd.stats = { military: 50, population: 500000, naval: false, landlocked: false };
+        }
       }
     }
-  }
-  setProgress(100, 'Done!');
+    setProgress(100, 'Done!');
 
-  await delay(200);
-  buildStatEditor(resolvedNations);
-  showScreen('screen-stats');
+    await delay(200);
+    buildStatEditor(resolvedNations);
+    showScreen('screen-stats');
+  } catch (e) {
+    console.error('Setup failed:', e);
+    setProgress(0, 'Setup failed. Check console and try again.');
+    alert('Setup failed: ' + (e?.message || e));
+    showScreen('screen-setup');
+  } finally {
+    document.getElementById('btn-begin').disabled = false;
+  }
 };
 
 // ─────────────────────────────────────────────────────────
@@ -1155,34 +911,39 @@ window.beginSetup = async function() {
 // ─────────────────────────────────────────────────────────
 async function resolveNations(names) {
   return Promise.all(names.map(async (name, i) => {
-    const key = name.toLowerCase().trim();
-    let osmRelId = null, isoCode = null, displayName = name;
+    const dbEntry = getDbData(name);
 
-    if (COUNTRY_OSM[key]) {
-      osmRelId = COUNTRY_OSM[key].rel;
-      isoCode  = COUNTRY_OSM[key].iso;
-      displayName = name.charAt(0).toUpperCase() + name.slice(1);
-    } else {
-      try {
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(name)}&format=json&limit=3`
-        );
-        const data = await res.json();
-        const rel = data.find(d => d.osm_type === 'relation') || data[0];
-        if (rel && rel.osm_type === 'relation') {
-          osmRelId = parseInt(rel.osm_id);
-          displayName = rel.display_name.split(',')[0];
-        }
-      } catch(e) { console.warn('Nominatim failed for', name); }
+    if (dbEntry) {
+      return {
+        id: 'nation_' + i,
+        label: dbEntry.label,
+        color: NATION_COLORS[i % NATION_COLORS.length],
+        osmRelId: dbEntry.relId,
+        isoCode: dbEntry.iso,
+        subdivisionsData: dbEntry.subdivisions,
+        subdivisions: [],
+        alive: true,
+        allianceIds: []
+      };
     }
+
+    let osmRelId = null, displayName = name;
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(name)}&format=json&limit=3`);
+      const data = await res.json();
+      const rel = data.find(d => d.osm_type === 'relation') || data[0];
+      if (rel && rel.osm_type === 'relation') {
+        osmRelId = parseInt(rel.osm_id);
+        displayName = rel.display_name.split(',')[0];
+      }
+    } catch(e) { console.warn('Nominatim failed for', name); }
 
     return {
       id: 'nation_' + i,
       label: displayName,
       color: NATION_COLORS[i % NATION_COLORS.length],
       osmRelId,
-      isoCode,
-      isRegion: COUNTRY_OSM[key]?.isRegion || false,
+      subdivisionsData: null,
       subdivisions: [],
       alive: true,
       allianceIds: []
@@ -1194,44 +955,13 @@ async function resolveNations(names) {
 // POLYGON FETCHING
 // ─────────────────────────────────────────────────────────
 
-// Admin levels to try per ISO code
-const SUBDIV_ADMIN_LEVELS = {
-  // Large federal/unitary states
-  USA: [4], CAN: [4], AUS: [4], RUS: [4], CHN: [4], IND: [4], BRA: [4],
-  MEX: [4], ARG: [4], DEU: [4], ESP: [4], ITA: [4], FRA: [6],
-  GBR: [6], IRL: [6],
-  // Europe
-  POL: [4], ROU: [4], BGR: [4], GRC: [4], HUN: [4], CZE: [4],
-  SVK: [4], AUT: [4], CHE: [4], BEL: [4], NLD: [4], PRT: [4],
-  SWE: [4], NOR: [4], FIN: [4], DNK: [5], LTU: [4], LVA: [4],
-  EST: [4], BLR: [4], UKR: [4], MDA: [4], SRB: [4], HRV: [4],
-  BIH: [4], MNE: [4], ALB: [4], MKD: [4], SVN: [4],
-  GEO: [4], ARM: [4], AZE: [4],
-  // Asia
-  JPN: [4], KOR: [4], PRK: [4], TWN: [4], MNG: [4],
-  TUR: [4], IRN: [4], IRQ: [4], SAU: [4], SYR: [4],
-  YEM: [4], JOR: [4], PAK: [4], BGD: [4], NPL: [4],
-  IDN: [4], PHL: [4], VNM: [4], THA: [4], MMR: [4],
-  MYS: [4], KAZ: [4], UZB: [4], TJK: [4], KGZ: [4], TKM: [4],
-  AFG: [4], LKA: [4],
-  // Africa
-  NGA: [4], EGY: [4], ETH: [4], ZAF: [4], TZA: [4], KEN: [4],
-  DZA: [4], SDN: [4], MAR: [4], AGO: [4], MOZ: [4], ZMB: [4],
-  ZWE: [4], CMR: [4], MDG: [4], UGA: [4], MLI: [4], BFA: [4],
-  NER: [4], TCD: [4], GHA: [4], SEN: [4], CIV: [4], SSD: [4],
-  // Americas
-  COL: [4], VEN: [4], PER: [4], CHL: [4], BOL: [4], PRY: [4],
-  URY: [4], ECU: [4], GTM: [4], CUB: [4],
-  // Oceania
-  NZL: [4], PNG: [4],
-};
-const DEFAULT_LEVELS = [4, 6];
-
 async function fetchAllPolygons(nations) {
   let done = 0;
   await Promise.all(nations.map(async (nation) => {
     try {
-      await fetchNationPolygons(nation);
+      await fetchNationPolygons(nation, (subdivisionName) => {
+        setProgress(15 + (done / nations.length) * 50, `Loading ${nation.label} subdivision: ${subdivisionName} polygon...`);
+      });
     } catch(e) {
       console.warn('Polygon fetch failed for', nation.label, e);
       nation.subdivisions = [{
@@ -1244,7 +974,7 @@ async function fetchAllPolygons(nations) {
   }));
 }
 
-async function fetchNationPolygons(nation) {
+async function fetchNationPolygons(nation, onSubdivisionProgress) {
   if (!nation.osmRelId) {
     nation.subdivisions = [{
       id: nation.id + '_main', nationId: nation.id, name: nation.label,
@@ -1253,98 +983,39 @@ async function fetchNationPolygons(nation) {
     return;
   }
 
-  const levels = nation.isRegion
-    ? []
-    : (SUBDIV_ADMIN_LEVELS[nation.isoCode] || DEFAULT_LEVELS);
-
-  let childRelations = [];
-  for (const level of levels) {
-    childRelations = await fetchChildRelationIds(nation.osmRelId, level);
-    if (childRelations.length > 0) break;
-  }
-
-  if (childRelations.length > 30) childRelations = childRelations.slice(0, 30);
-
-  if (childRelations.length === 0) {
-    const geojson = await fetchRelationGeoJSON(nation.osmRelId);
-    nation.subdivisions = [{
-      id: 'sd_' + nation.osmRelId, nationId: nation.id, originalNationId: nation.id,
-      name: nation.label, geojson,
-      stats: { military: 50, population: 1000000, naval: false, landlocked: false }
-    }];
+  if (nation.subdivisionsData && nation.subdivisionsData.length > 0) {
+    nation.subdivisions = [];
+    for (const sd of nation.subdivisionsData) {
+      if (onSubdivisionProgress) onSubdivisionProgress(sd.name);
+      const geojson = sd.relId ? await fetchRelationGeoJSON(sd.relId) : null;
+      nation.subdivisions.push({
+        id: sd.relId ? ('sd_' + sd.relId) : (nation.id + '_sd_' + nation.subdivisions.length),
+        nationId: nation.id,
+        originalNationId: nation.id,
+        name: sd.name,
+        geojson,
+        stats: {
+          military: sd.military,
+          population: sd.population,
+          naval: sd.naval,
+          landlocked: sd.landlocked,
+          fromDb: true
+        }
+      });
+    }
     return;
   }
 
-  nation.subdivisions = [];
-  const BATCH = 5;
-  for (let i = 0; i < childRelations.length; i += BATCH) {
-    const batch = childRelations.slice(i, i + BATCH);
-    const results = await Promise.all(batch.map(async (rel) => {
-      const geojson = await fetchRelationGeoJSON(rel.id);
-      return {
-        id: 'sd_' + rel.id, nationId: nation.id, originalNationId: nation.id,
-        name: rel.name, geojson,
-        stats: { military: 50, population: 500000, naval: false, landlocked: false }
-      };
-    }));
-    nation.subdivisions.push(...results);
-  }
-
-  if (nation.subdivisions.length === 0) {
-    nation.subdivisions = [{
-      id: nation.id + '_main', nationId: nation.id, name: nation.label,
-      geojson: null, stats: { military: 50, population: 1000000, naval: false, landlocked: false }
-    }];
-  }
-}
-
-async function fetchChildRelationIds(parentRelId, adminLevel) {
-  const query = `[out:json][timeout:30];
-relation(${parentRelId});
-relation(r)[admin_level="${adminLevel}"]["boundary"="administrative"];
-out tags qt 60;`;
-  try {
-    const data = await overpassFetch(query);
-    if (data.elements && data.elements.length > 0) {
-      return data.elements.map(el => ({
-        id: el.id,
-        name: el.tags?.['name:en'] || el.tags?.name || `Region ${el.id}`
-      }));
-    }
-  } catch(e) {
-    console.warn(`Overpass member query failed (rel ${parentRelId}, level ${adminLevel}):`, e);
-  }
-
-  const areaId = parentRelId + 3600000000;
-  const isoQuery = `[out:json][timeout:30];
-area(${areaId})->.p;
-relation(area.p)[admin_level="${adminLevel}"]["boundary"="administrative"]["ISO3166-2"];
-out tags qt 60;`;
-  try {
-    const data2 = await overpassFetch(isoQuery);
-    if (data2.elements && data2.elements.length > 0) {
-      const firstIso = data2.elements[0].tags?.['ISO3166-2'] || '';
-      const prefix = firstIso.split('-')[0] + '-';
-      const filtered = data2.elements.filter(el => {
-        const iso = el.tags?.['ISO3166-2'] || '';
-        return iso.startsWith(prefix);
-      });
-      if (filtered.length > 0) {
-        return filtered.map(el => ({
-          id: el.id,
-          name: el.tags?.['name:en'] || el.tags?.name || `Region ${el.id}`
-        }));
-      }
-      return data2.elements.map(el => ({
-        id: el.id,
-        name: el.tags?.['name:en'] || el.tags?.name || `Region ${el.id}`
-      }));
-    }
-  } catch(e) {
-    console.warn(`Overpass ISO fallback failed (rel ${parentRelId}, level ${adminLevel}):`, e);
-  }
-
-  return [];
+  // Fallback for unsupported nations: fetch the main nation geometry only.
+  const geojson = await fetchRelationGeoJSON(nation.osmRelId);
+  nation.subdivisions = [{
+    id: 'sd_' + nation.osmRelId,
+    nationId: nation.id,
+    originalNationId: nation.id,
+    name: nation.label,
+    geojson,
+    stats: { military: 50, population: 1000000, naval: false, landlocked: false }
+  }];
 }
 
 async function fetchRelationGeoJSON(relId) {
@@ -1374,76 +1045,19 @@ async function fetchRelationGeoJSON(relId) {
   }
 }
 
-async function overpassFetch(query) {
-  const mirrors = [
-    'https://overpass.kumi.systems/api/interpreter',
-    'https://overpass-api.de/api/interpreter',
-  ];
-  for (const url of mirrors) {
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        body: 'data=' + encodeURIComponent(query),
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-      });
-      if (res.ok) return res.json();
-    } catch(e) {
-      console.warn('Overpass mirror failed:', url, e);
-    }
-  }
-  return { elements: [] };
-}
-
 // ─────────────────────────────────────────────────────────
 // AI SUBDIVISION GENERATION
 // ─────────────────────────────────────────────────────────
-const HISTORICAL_SUBDIVISIONS = {
-  'roman empire': ['Italia','Gaul','Hispania','Aegyptus','Britannia','Germania Superior','Thracia','Asia Minor','Syria','Africa Proconsularis','Pannonia','Dacia'],
-  'holy roman empire': ['Bavaria','Saxony','Bohemia','Burgundy','Swabia','Franconia','Thuringia','Brandenburg','Austria','Lorraine'],
-  'mongol empire': ['Mongolia','Persia','Kipchak Steppe','China','Central Asia','Kievan Rus','Anatolia'],
-  'ottoman empire': ['Anatolia','Rumelia','Egypt','Syria','Iraq','Arabia','Bulgaria','Serbia','Hungary','Algeria','Tunisia'],
-  'british empire': ['England','Scotland','Wales','Ireland','India','Canada','Australia','South Africa','Nigeria','Egypt','Burma'],
-  'byzantine empire': ['Constantinople','Anatolia','Greece','Bulgaria','Syria','Egypt','Sicily','Calabria','Crimea'],
-  'persian empire': ['Persia','Media','Babylonia','Lydia','Egypt','Bactria','Sogdiana','India','Armenia','Cappadocia'],
-  'mali empire': ['Mali','Songhai','Timbuktu','Kanem','Ghana','Senegambia','Air','Taghaza','Bambuk','Tekrur'],
-  'great song': ['Jiangnan','Sichuan','Fujian','Guangdong','Zhejiang','Jiangxi','Hunan','Hubei','Hebei','Shandong'],
-  'han dynasty': ['Guanzhong','Hebei','Shandong','Jiangnan','Sichuan','Yunnan','Liaodong','Korea','Vietnam','Sogdiana'],
-  'viking age': ['Norway','Denmark','Sweden','Iceland','Faroe Islands','Orkney','Normandy','Dublin','Novgorod'],
-  'aztec empire': ['Tenochtitlan','Texcoco','Tlacopan','Tlaxcala','Oaxaca','Veracruz','Michoacan','Guerrero'],
-  'inca empire': ['Cusco','Quito','Tiwanaku','Huanuco Pampa','Vilcashuaman','Tambo Colorado','Chinchasuyu','Collasuyu'],
-  'napoleon': ['France','Belgium','Holland','Rhineland','Italy','Spain','Poland','Illyria','Westphalia'],
-  'ussr': ['Russia','Ukraine','Belarus','Kazakhstan','Uzbekistan','Georgia','Armenia','Azerbaijan','Moldova','Lithuania','Latvia','Estonia'],
-  'third reich': ['Prussia','Bavaria','Rhineland','Austria','Sudetenland','Alsace','Lorraine'],
-};
-
 async function generateAISubdivisions(nation) {
-  const key = nation.label.toLowerCase().trim();
-
-  for (const [pattern, subdivNames] of Object.entries(HISTORICAL_SUBDIVISIONS)) {
-    if (key.includes(pattern) || pattern.includes(key)) {
-      nation.subdivisions = subdivNames.map((name, i) => ({
-        id: nation.id + '_sd_' + i,
-        nationId: nation.id,
-        originalNationId: nation.id,
-        name,
-        geojson: null,
-        stats: { military: 40, population: 500000, naval: false, landlocked: false }
-      }));
-      return;
-    }
-  }
-
-  if (!qwenPipe) {
-    const generic = ['Northern Region','Southern Region','Eastern Province','Western Province','Central Territory','Coastal Domain','Highland District','River Delta'];
-    nation.subdivisions = generic.map((name, i) => ({
-      id: nation.id + '_sd_' + i,
-      nationId: nation.id,
-      originalNationId: nation.id,
-      name,
-      geojson: null,
-      stats: { military: 40, population: 500000, naval: false, landlocked: false }
-    }));
-  }
+  const generic = ['Northern Region','Southern Region','Eastern Province','Western Province','Central Territory','Coastal Domain','Highland District','River Delta'];
+  nation.subdivisions = generic.map((name, i) => ({
+    id: nation.id + '_sd_' + i,
+    nationId: nation.id,
+    originalNationId: nation.id,
+    name,
+    geojson: null,
+    stats: { military: 40, population: 500000, naval: false, landlocked: false }
+  }));
 }
 
 // ─────────────────────────────────────────────────────────
