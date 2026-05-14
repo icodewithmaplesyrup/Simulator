@@ -959,6 +959,42 @@ async function fetchNationPolygons(nation) {
     return;
   }
 
+  let childRelations = await fetchChildRelationIds(nation.osmRelId, 4);
+  if (childRelations.length > 30) childRelations = childRelations.slice(0, 30);
+
+  if (childRelations.length === 0) {
+    const geojson = await fetchRelationGeoJSON(nation.osmRelId);
+    nation.subdivisions = [{
+      id: 'sd_' + nation.osmRelId, nationId: nation.id, originalNationId: nation.id,
+      name: nation.label, geojson,
+      stats: { military: 50, population: 1000000, naval: false, landlocked: false }
+    }];
+    return;
+  }
+
+  nation.subdivisions = [];
+  const BATCH = 5;
+  for (let i = 0; i < childRelations.length; i += BATCH) {
+    const batch = childRelations.slice(i, i + BATCH);
+    const results = await Promise.all(batch.map(async (rel) => {
+      const geojson = await fetchRelationGeoJSON(rel.id);
+      return {
+        id: 'sd_' + sd.relId,
+        nationId: nation.id,
+        originalNationId: nation.id,
+        name: sd.name,
+        geojson,
+        stats: {
+          military: sd.military,
+          population: sd.population,
+          naval: sd.naval,
+          landlocked: sd.landlocked
+        }
+      };
+    }));
+    return;
+  }
+
   // Fallback for unsupported nations: fetch the main nation geometry only.
   const geojson = await fetchRelationGeoJSON(nation.osmRelId);
   nation.subdivisions = [{
