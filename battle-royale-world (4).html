@@ -1,0 +1,1977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Nation Battle Royale</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;900&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0a0f;
+  --surface: #111118;
+  --surface2: #1a1a24;
+  --border: #2a2a3a;
+  --gold: #c9a84c;
+  --gold2: #e8c97a;
+  --red: #8b1a1a;
+  --red2: #c0392b;
+  --green: #1a4a2a;
+  --green2: #27ae60;
+  --blue: #1a2a4a;
+  --blue2: #2980b9;
+  --text: #d4c5a9;
+  --text-dim: #7a6e5a;
+  --radius: 4px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Crimson Text', Georgia, serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── SCREENS ── */
+.screen { display: none; width: 100%; height: 100%; }
+.screen.active { display: flex; }
+
+/* ── LOADING SCREEN ── */
+#screen-loading {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at center, #1a1220 0%, var(--bg) 70%);
+  gap: 24px;
+}
+
+.loading-crest {
+  font-family: 'Cinzel', serif;
+  font-size: 4rem;
+  color: var(--gold);
+  text-shadow: 0 0 40px rgba(201,168,76,0.4);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.loading-title {
+  font-family: 'Cinzel', serif;
+  font-size: 1.4rem;
+  color: var(--gold2);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+
+.loading-status {
+  font-size: 1rem;
+  color: var(--text-dim);
+  font-style: italic;
+  min-height: 1.5em;
+  text-align: center;
+}
+
+.progress-bar-wrap {
+  width: 360px;
+  height: 6px;
+  background: var(--surface2);
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--gold), var(--gold2));
+  width: 0%;
+  transition: width 0.4s ease;
+  border-radius: 3px;
+}
+
+.loading-warning {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  text-align: center;
+  max-width: 360px;
+  line-height: 1.6;
+}
+
+/* ── SETUP SCREEN ── */
+#screen-setup {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at 30% 50%, #150e1a 0%, var(--bg) 60%);
+  padding: 40px;
+  gap: 32px;
+}
+
+.setup-header {
+  text-align: center;
+}
+
+.setup-header h1 {
+  font-family: 'Cinzel', serif;
+  font-size: 2.8rem;
+  color: var(--gold);
+  letter-spacing: 0.1em;
+  text-shadow: 0 2px 20px rgba(201,168,76,0.3);
+}
+
+.setup-header p {
+  color: var(--text-dim);
+  font-style: italic;
+  margin-top: 8px;
+  font-size: 1.1rem;
+}
+
+.setup-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px 32px;
+  width: 100%;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.setup-card label {
+  font-family: 'Cinzel', serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.15em;
+  color: var(--gold);
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.nations-input {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: 'Crimson Text', serif;
+  font-size: 1.05rem;
+  padding: 12px 14px;
+  outline: none;
+  transition: border-color 0.2s;
+  resize: vertical;
+  min-height: 90px;
+}
+
+.nations-input:focus { border-color: var(--gold); }
+.nations-input::placeholder { color: var(--text-dim); font-style: italic; }
+
+.stats-mode {
+  display: flex;
+  gap: 10px;
+}
+
+.mode-btn {
+  flex: 1;
+  padding: 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text-dim);
+  font-family: 'Cinzel', serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mode-btn.selected {
+  background: var(--gold);
+  color: #0a0a0f;
+  border-color: var(--gold);
+}
+
+.start-btn {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, #8b6914, var(--gold));
+  color: #0a0a0f;
+  font-family: 'Cinzel', serif;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.2s;
+  text-transform: uppercase;
+}
+
+.start-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+.start-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+/* ── STAT EDITOR SCREEN ── */
+#screen-stats {
+  flex-direction: column;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.stats-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.stats-header h2 {
+  font-family: 'Cinzel', serif;
+  color: var(--gold);
+  font-size: 1.1rem;
+  letter-spacing: 0.1em;
+}
+
+.stats-header p {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.stats-table-wrap {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+}
+
+table.stat-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+table.stat-table th {
+  font-family: 'Cinzel', serif;
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  color: var(--gold);
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+}
+
+table.stat-table td {
+  padding: 7px 12px;
+  border-bottom: 1px solid #1a1a24;
+  vertical-align: middle;
+}
+
+table.stat-table tr.nation-row td { background: var(--surface); font-weight: 600; }
+table.stat-table tr.subdiv-row td { background: var(--surface2); padding-left: 28px; font-size: 0.9rem; color: #bbb; }
+
+.nation-color-dot {
+  display: inline-block;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+.stat-input {
+  background: #0f0f18;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text);
+  font-family: 'Crimson Text', serif;
+  font-size: 0.9rem;
+  padding: 4px 8px;
+  width: 90px;
+  outline: none;
+}
+
+.stat-input:focus { border-color: var(--gold); }
+
+.bool-check {
+  accent-color: var(--gold);
+  width: 16px; height: 16px;
+  cursor: pointer;
+}
+
+.ai-badge {
+  font-size: 0.65rem;
+  background: var(--gold);
+  color: #000;
+  padding: 1px 5px;
+  border-radius: 2px;
+  font-family: 'Cinzel', serif;
+  letter-spacing: 0.05em;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* ── GAME SCREEN ── */
+#screen-game {
+  flex-direction: row;
+  overflow: hidden;
+}
+
+#sidebar {
+  width: 340px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.sidebar-title {
+  font-family: 'Cinzel', serif;
+  font-size: 1.2rem;
+  color: var(--gold);
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid var(--border);
+  letter-spacing: 0.08em;
+  flex-shrink: 0;
+}
+
+.round-badge {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  float: right;
+  font-family: 'Crimson Text', serif;
+  font-style: italic;
+  margin-top: 3px;
+}
+
+/* Nations list */
+.nations-list {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  max-height: 280px;
+  flex-shrink: 0;
+}
+
+.nation-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: opacity 0.3s;
+}
+
+.nation-card.eliminated {
+  opacity: 0.35;
+  text-decoration: line-through;
+}
+
+.nation-card.allied-highlight {
+  border-color: var(--gold);
+}
+
+.nation-swatch {
+  width: 12px; height: 28px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.nation-info { flex: 1; min-width: 0; }
+.nation-name { font-weight: 600; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nation-stats-mini { font-size: 0.75rem; color: var(--text-dim); font-style: italic; }
+
+.nation-territory-bar {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin-top: 4px;
+  overflow: hidden;
+}
+
+.nation-territory-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+/* Alliance display */
+.alliances-section {
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.alliances-title {
+  font-family: 'Cinzel', serif;
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.alliance-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  margin: 2px;
+}
+
+/* Event log */
+.event-log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.event-entry {
+  background: var(--surface2);
+  border-left: 3px solid var(--border);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 8px 10px;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.event-entry.war { border-left-color: var(--red2); }
+.event-entry.alliance { border-left-color: var(--gold); }
+.event-entry.rebellion { border-left-color: var(--green2); }
+.event-entry.elimination { border-left-color: #888; }
+
+.event-type-label {
+  font-family: 'Cinzel', serif;
+  font-size: 0.6rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+
+.event-entry.war .event-type-label { color: var(--red2); }
+.event-entry.alliance .event-type-label { color: var(--gold); }
+.event-entry.rebellion .event-type-label { color: var(--green2); }
+.event-entry.elimination .event-type-label { color: #888; }
+
+/* Controls */
+.controls {
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.btn-turn {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(135deg, #6b1010, var(--red2));
+  color: white;
+  font-family: 'Cinzel', serif;
+  font-size: 0.85rem;
+  letter-spacing: 0.12em;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.2s;
+  text-transform: uppercase;
+}
+
+.btn-turn:hover:not(:disabled) { filter: brightness(1.2); transform: translateY(-1px); }
+.btn-turn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+.speed-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.speed-row input[type=range] {
+  flex: 1;
+  accent-color: var(--gold);
+  height: 4px;
+}
+
+#map { flex: 1; background: #0a0a12; }
+
+/* Victory screen overlay */
+#victory-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  z-index: 9999;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 24px;
+}
+
+#victory-overlay.show { display: flex; }
+
+.victory-crest { font-size: 5rem; animation: victoryPulse 1.5s ease-in-out infinite; }
+@keyframes victoryPulse {
+  0%,100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+.victory-title {
+  font-family: 'Cinzel', serif;
+  font-size: 2.5rem;
+  color: var(--gold);
+  text-align: center;
+  text-shadow: 0 0 40px rgba(201,168,76,0.6);
+}
+
+.victory-subtitle {
+  font-size: 1.2rem;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.btn-restart {
+  padding: 12px 32px;
+  background: linear-gradient(135deg, #8b6914, var(--gold));
+  color: #0a0a0f;
+  font-family: 'Cinzel', serif;
+  font-size: 0.9rem;
+  letter-spacing: 0.15em;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  text-transform: uppercase;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+.narrating-indicator {
+  display: inline-block;
+  font-style: italic;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.narrating-indicator::after {
+  content: '...';
+  animation: dots 1.2s steps(3, end) infinite;
+}
+
+@keyframes dots {
+  0%,20% { content: '.'; }
+  40%,60% { content: '..'; }
+  80%,100% { content: '...'; }
+}
+</style>
+</head>
+<body>
+
+<!-- LOADING SCREEN -->
+<div id="screen-loading" class="screen active">
+  <div class="loading-crest">⚔</div>
+  <div class="loading-title">Nation Battle Royale</div>
+  <div class="loading-status" id="loading-status">Initialising...</div>
+  <div class="progress-bar-wrap">
+    <div class="progress-bar-fill" id="loading-bar"></div>
+  </div>
+  <div class="loading-warning">
+    Models are cached after first load · Close other tabs for best performance<br>
+    AI models run entirely on your device — no data leaves your browser
+  </div>
+</div>
+
+<!-- SETUP SCREEN -->
+<div id="screen-setup" class="screen">
+  <div class="setup-header">
+    <h1>⚔ Nation Battle Royale</h1>
+    <p>Name your combatants — nations, regions, or historic territories</p>
+  </div>
+
+  <div class="setup-card">
+    <div>
+      <label>Nations (one per line or comma-separated)</label>
+      <textarea class="nations-input" id="nations-input" placeholder="United States&#10;China&#10;Russia&#10;India&#10;Brazil&#10;Germany"></textarea>
+    </div>
+
+    <div>
+      <label>Stats Generation</label>
+      <div class="stats-mode">
+        <button class="mode-btn selected" id="btn-fast" onclick="selectMode('fast')">⚡ Fast (Instant)</button>
+        <button class="mode-btn" id="btn-manual" onclick="selectMode('manual')">✎ Manual Entry</button>
+      </div>
+    </div>
+
+    <div id="mode-note" style="font-size:0.8rem;color:var(--text-dim);font-style:italic;">⚡ Fast mode — heuristic stats, no AI wait. Best for large battles (10+ nations).
+      Fast mode skips AI stat generation — stats are assigned by heuristic. Best for large battles.
+    </div>
+
+    <button class="start-btn" id="btn-begin" onclick="beginSetup()">Begin Setup →</button>
+  </div>
+</div>
+
+<!-- STAT EDITOR SCREEN -->
+<div id="screen-stats" class="screen">
+  <div class="stats-header">
+    <div>
+      <h2>Review &amp; Edit Statistics</h2>
+      <p id="stats-header-note">AI-generated values — edit anything before battle begins</p>
+    </div>
+    <button class="start-btn" style="width:auto;padding:10px 24px;font-size:0.8rem;" onclick="startGame()">
+      Start Battle Royale ⚔
+    </button>
+  </div>
+  <div class="stats-table-wrap">
+    <table class="stat-table">
+      <thead>
+        <tr>
+          <th>Region</th>
+          <th>Military (0–100)</th>
+          <th>Population</th>
+          <th>Naval</th>
+          <th>Landlocked</th>
+        </tr>
+      </thead>
+      <tbody id="stat-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- GAME SCREEN -->
+<div id="screen-game" class="screen">
+  <div id="sidebar">
+    <div class="sidebar-title">
+      ⚔ Battle Royale
+      <span class="round-badge" id="round-badge">Round 0</span>
+    </div>
+
+    <div class="nations-list" id="nations-list"></div>
+
+    <div class="alliances-section" id="alliances-section" style="display:none;">
+      <div class="alliances-title">Active Alliances</div>
+      <div id="alliances-display"></div>
+    </div>
+
+    <div class="event-log" id="event-log">
+      <div style="color:var(--text-dim);font-style:italic;font-size:0.85rem;">The battle is about to begin...</div>
+    </div>
+
+    <div class="controls">
+      <button class="btn-turn" id="btn-next-turn" onclick="nextTurn()">Next Turn ▶</button>
+      <div class="speed-row">
+        <span>Manual</span>
+        <input type="range" id="speed-slider" min="0" max="4" value="0" oninput="updateSpeed(this.value)">
+        <span>Fast</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="map"></div>
+</div>
+
+<!-- VICTORY OVERLAY -->
+<div id="victory-overlay">
+  <div class="victory-crest">👑</div>
+  <div class="victory-title" id="victory-title">Victory!</div>
+  <div class="victory-subtitle" id="victory-subtitle"></div>
+  <button class="btn-restart" onclick="location.reload()">New Battle</button>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ─────────────────────────────────────────────────────────
+// GLOBALS
+// ─────────────────────────────────────────────────────────
+let statsMode = 'fast';
+let map = null;
+let leafletLayers = {};
+let gameState = {
+  nations: [],
+  subdivisions: [],
+  alliances: [],
+  round: 0,
+  log: [],
+  totalSubdivs: 0
+};
+let autoTimer = null;
+const speedDelays = [0, 4000, 2000, 1000, 400];
+
+const NATION_COLORS = [
+  '#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6',
+  '#1abc9c','#e67e22','#e91e63','#00bcd4','#8bc34a',
+  '#ff5722','#607d8b','#795548','#ffc107','#03a9f4',
+  '#4caf50','#9c27b0','#ff9800','#2196f3','#f44336',
+  '#00e5ff','#76ff03','#ff6d00','#d500f9','#304ffe',
+  '#00b0ff','#69f0ae','#ffea00','#ff4081','#b2ff59'
+];
+
+// OSM admin levels per ISO-3 code (best level for first-order subdivisions)
+const OSM_ADMIN_LEVELS = {
+  default: 4,
+  // Europe
+  GBR: 6, IRL: 6, FRA: 6, DEU: 4, ESP: 4, ITA: 4,
+  POL: 4, ROU: 4, BGR: 4, GRC: 4, HUN: 4, CZE: 4,
+  SVK: 4, AUT: 4, CHE: 4, BEL: 4, NLD: 4, PRT: 4,
+  SWE: 4, NOR: 4, FIN: 4, DNK: 5, ISL: 4, LTU: 4,
+  LVA: 4, EST: 4, BLR: 4, UKR: 4, MDA: 4, SRB: 4,
+  HRV: 4, BIH: 4, MNE: 4, ALB: 4, MKD: 4, SVN: 4,
+  GEO: 4, ARM: 4, AZE: 4,
+  // Americas
+  USA: 4, CAN: 4, MEX: 4, BRA: 4, ARG: 4, COL: 4,
+  VEN: 4, PER: 4, CHL: 4, BOL: 4, PRY: 4, URY: 4,
+  ECU: 4, GTM: 4, CUB: 4,
+  // Asia
+  RUS: 4, CHN: 4, JPN: 4, IND: 4, PAK: 4, BGD: 4,
+  IDN: 4, PHL: 4, VNM: 4, THA: 4, MMR: 4, MYS: 4,
+  KOR: 4, PRK: 4, IRN: 4, IRQ: 4, SAU: 4, TUR: 4,
+  SYR: 4, YEM: 4, KAZ: 4, UZB: 4, TJK: 4, KGZ: 4,
+  TKM: 4, TWN: 4, MNG: 4, AFG: 4, NPL: 4, LKA: 4,
+  // Africa
+  NGA: 4, EGY: 4, ETH: 4, ZAF: 4, TZA: 4, KEN: 4,
+  DZA: 4, SDN: 4, MAR: 4, AGO: 4, MOZ: 4, ZMB: 4,
+  ZWE: 4, CMR: 4, MDG: 4, UGA: 4, MLI: 4, BFA: 4,
+  NER: 4, TCD: 4, GHA: 4, SEN: 4, CIV: 4,
+  // Oceania
+  AUS: 4, NZL: 4, PNG: 4,
+};
+
+// ─────────────────────────────────────────────────────────
+// WORLD COUNTRY DATABASE
+// name (lowercase) → { iso: ISO-3166-1-alpha-3, rel: OSM relation ID }
+//
+// OSM relation IDs verified for major countries; estimates used for smaller
+// nations — the Nominatim fallback handles any mismatch gracefully.
+//
+// EDITORIAL DECISIONS:
+//  - Taiwan (TWN, rel 449220) and China (CHN, rel 270056) are separate entries.
+//  - Cyprus uses the unified Republic of Cyprus relation (307787); TRNC omitted.
+//  - Palestine (PSE) uses the State of Palestine relation covering West Bank+Gaza.
+//  - Kosovo (XKX) included as partially recognised; Nominatim resolves it.
+//  - Western Sahara (ESH) included as a contested territory with OSM data.
+//  - Somaliland, Transnistria, South Ossetia, Abkhazia: excluded.
+//  - UAE (ARE, rel 307763) included with aliases 'uae' and 'emirates'.
+// ─────────────────────────────────────────────────────────
+const COUNTRY_OSM = {
+
+  // ═══════════════════════════
+  // EUROPE
+  // ═══════════════════════════
+  'albania': { iso: 'ALB', rel: 53292 },
+  'andorra': { iso: 'AND', rel: 9407 },
+  'austria': { iso: 'AUT', rel: 16239 },
+  'belarus': { iso: 'BLR', rel: 59065 },
+  'belgium': { iso: 'BEL', rel: 52411 },
+  'bosnia': { iso: 'BIH', rel: 2528142 },
+  'bosnia and herzegovina': { iso: 'BIH', rel: 2528142 },
+  'bulgaria': { iso: 'BGR', rel: 186382 },
+  'croatia': { iso: 'HRV', rel: 214885 },
+  'cyprus': { iso: 'CYP', rel: 307787 },       // unified Republic of Cyprus
+  'czechia': { iso: 'CZE', rel: 51684 },
+  'czech republic': { iso: 'CZE', rel: 51684 },
+  'denmark': { iso: 'DNK', rel: 50046 },
+  'estonia': { iso: 'EST', rel: 79510 },
+  'finland': { iso: 'FIN', rel: 54224 },
+  'france': { iso: 'FRA', rel: 2202162 },
+  'germany': { iso: 'DEU', rel: 51477 },
+  'greece': { iso: 'GRC', rel: 192307 },
+  'hungary': { iso: 'HUN', rel: 21335 },
+  'iceland': { iso: 'ISL', rel: 299133 },
+  'ireland': { iso: 'IRL', rel: 62273 },
+  'italy': { iso: 'ITA', rel: 365331 },
+  'kosovo': { iso: 'XKX', rel: 2088990 },       // partially recognised; Nominatim fallback if ID stale
+  'latvia': { iso: 'LVA', rel: 72594 },
+  'liechtenstein': { iso: 'LIE', rel: 1155955 },
+  'lithuania': { iso: 'LTU', rel: 72596 },
+  'luxembourg': { iso: 'LUX', rel: 2171347 },
+  'malta': { iso: 'MLT', rel: 365307 },
+  'moldova': { iso: 'MDA', rel: 58974 },
+  'monaco': { iso: 'MCO', rel: 1124039 },
+  'montenegro': { iso: 'MNE', rel: 53296 },
+  'netherlands': { iso: 'NLD', rel: 47796 },
+  'holland': { iso: 'NLD', rel: 47796 },
+  'north macedonia': { iso: 'MKD', rel: 53293 },
+  'macedonia': { iso: 'MKD', rel: 53293 },
+  'norway': { iso: 'NOR', rel: 2978650 },
+  'poland': { iso: 'POL', rel: 49715 },
+  'portugal': { iso: 'PRT', rel: 295480 },
+  'romania': { iso: 'ROU', rel: 90689 },
+  'russia': { iso: 'RUS', rel: 60189 },
+  'san marino': { iso: 'SMR', rel: 54624 },
+  'serbia': { iso: 'SRB', rel: 1741311 },
+  'slovakia': { iso: 'SVK', rel: 14296 },
+  'slovenia': { iso: 'SVN', rel: 218657 },
+  'spain': { iso: 'ESP', rel: 1311341 },
+  'sweden': { iso: 'SWE', rel: 52822 },
+  'switzerland': { iso: 'CHE', rel: 51701 },
+  'ukraine': { iso: 'UKR', rel: 60199 },
+  'uk': { iso: 'GBR', rel: 62149 },
+  'united kingdom': { iso: 'GBR', rel: 62149 },
+  'britain': { iso: 'GBR', rel: 62149 },
+  'great britain': { iso: 'GBR', rel: 62149 },
+  'vatican': { iso: 'VAT', rel: 36989 },
+  'vatican city': { iso: 'VAT', rel: 36989 },
+  'holy see': { iso: 'VAT', rel: 36989 },
+
+  // Sub-national British Isles (kept from original)
+  'england': { iso: 'GBR', rel: 58447, isRegion: true },
+  'scotland': { iso: 'GBR', rel: 58446, isRegion: true },
+  'wales': { iso: 'GBR', rel: 58437, isRegion: true },
+  'northern ireland': { iso: 'GBR', rel: 156393, isRegion: true },
+  'cornwall': { iso: 'GBR', rel: 51313, isRegion: true },
+  'brittany': { iso: 'FRA', rel: 102740, isRegion: true },
+  'catalonia': { iso: 'ESP', rel: 349035, isRegion: true },
+  'basque country': { iso: 'ESP', rel: 349036, isRegion: true },
+  'galicia': { iso: 'ESP', rel: 349037, isRegion: true },
+  'sicily': { iso: 'ITA', rel: 39152, isRegion: true },
+  'sardinia': { iso: 'ITA', rel: 254122, isRegion: true },
+  'bavaria': { iso: 'DEU', rel: 2145268, isRegion: true },
+  'flanders': { iso: 'BEL', rel: 53134, isRegion: true },
+  'wallonia': { iso: 'BEL', rel: 90348, isRegion: true },
+  'lombardy': { iso: 'ITA', rel: 44879, isRegion: true },
+  'veneto': { iso: 'ITA', rel: 44882, isRegion: true },
+  'andalusia': { iso: 'ESP', rel: 349033, isRegion: true },
+
+  // ═══════════════════════════
+  // ASIA
+  // ═══════════════════════════
+  'afghanistan': { iso: 'AFG', rel: 303427 },
+  'armenia': { iso: 'ARM', rel: 364066 },
+  'azerbaijan': { iso: 'AZE', rel: 364110 },
+  'bahrain': { iso: 'BHR', rel: 378734 },
+  'bangladesh': { iso: 'BGD', rel: 184640 },
+  'bhutan': { iso: 'BTN', rel: 184629 },
+  'brunei': { iso: 'BRN', rel: 388100 },
+  'cambodia': { iso: 'KHM', rel: 49181 },
+  'china': { iso: 'CHN', rel: 270056 },
+  "people's republic of china": { iso: 'CHN', rel: 270056 },
+  'prc': { iso: 'CHN', rel: 270056 },
+  'georgia': { iso: 'GEO', rel: 28699 },
+  'india': { iso: 'IND', rel: 304716 },
+  'indonesia': { iso: 'IDN', rel: 304751 },
+  'iran': { iso: 'IRN', rel: 304938 },
+  'iraq': { iso: 'IRQ', rel: 304934 },
+  'israel': { iso: 'ISR', rel: 1473946 },
+  'japan': { iso: 'JPN', rel: 382313 },
+  'jordan': { iso: 'JOR', rel: 184818 },
+  'kazakhstan': { iso: 'KAZ', rel: 214665 },
+  'kuwait': { iso: 'KWT', rel: 305099 },
+  'kyrgyzstan': { iso: 'KGZ', rel: 178009 },
+  'laos': { iso: 'LAO', rel: 49903 },
+  'lebanon': { iso: 'LBN', rel: 184843 },
+  'malaysia': { iso: 'MYS', rel: 2108121 },
+  'maldives': { iso: 'MDV', rel: 536773 },
+  'mongolia': { iso: 'MNG', rel: 161033 },
+  'myanmar': { iso: 'MMR', rel: 50371 },
+  'burma': { iso: 'MMR', rel: 50371 },
+  'nepal': { iso: 'NPL', rel: 184633 },
+  'north korea': { iso: 'PRK', rel: 192734 },
+  'dprk': { iso: 'PRK', rel: 192734 },
+  'oman': { iso: 'OMN', rel: 305138 },
+  'pakistan': { iso: 'PAK', rel: 307573 },
+  'palestine': { iso: 'PSE', rel: 1703814 },    // State of Palestine (West Bank + Gaza)
+  'state of palestine': { iso: 'PSE', rel: 1703814 },
+  'philippines': { iso: 'PHL', rel: 443174 },
+  'qatar': { iso: 'QAT', rel: 305095 },
+  'saudi arabia': { iso: 'SAU', rel: 307763 },
+  'singapore': { iso: 'SGP', rel: 536780 },
+  'south korea': { iso: 'KOR', rel: 307756 },
+  'republic of korea': { iso: 'KOR', rel: 307756 },
+  'sri lanka': { iso: 'LKA', rel: 536807 },
+  'syria': { iso: 'SYR', rel: 184840 },
+  'taiwan': { iso: 'TWN', rel: 449220 },        // Republic of China / Taiwan
+  'republic of china': { iso: 'TWN', rel: 449220 },
+  'roc': { iso: 'TWN', rel: 449220 },
+  'tajikistan': { iso: 'TJK', rel: 214626 },
+  'thailand': { iso: 'THA', rel: 2067731 },
+  'timor-leste': { iso: 'TLS', rel: 305142 },
+  'east timor': { iso: 'TLS', rel: 305142 },
+  'turkey': { iso: 'TUR', rel: 174737 },
+  'turkiye': { iso: 'TUR', rel: 174737 },
+  'turkmenistan': { iso: 'TKM', rel: 223026 },
+  'united arab emirates': { iso: 'ARE', rel: 307763 },
+  'uae': { iso: 'ARE', rel: 307763 },
+  'emirates': { iso: 'ARE', rel: 307763 },
+  'uzbekistan': { iso: 'UZB', rel: 196240 },
+  'vietnam': { iso: 'VNM', rel: 49915 },
+  'yemen': { iso: 'YEM', rel: 305092 },
+
+  // ═══════════════════════════
+  // AFRICA
+  // ═══════════════════════════
+  'algeria': { iso: 'DZA', rel: 192756 },
+  'angola': { iso: 'AGO', rel: 195267 },
+  'benin': { iso: 'BEN', rel: 192784 },
+  'botswana': { iso: 'BWA', rel: 1889339 },
+  'burkina faso': { iso: 'BFA', rel: 192783 },
+  'burundi': { iso: 'BDI', rel: 195269 },
+  'cabo verde': { iso: 'CPV', rel: 535774 },
+  'cape verde': { iso: 'CPV', rel: 535774 },
+  'cameroon': { iso: 'CMR', rel: 192830 },
+  'central african republic': { iso: 'CAF', rel: 192790 },
+  'chad': { iso: 'TCD', rel: 2361304 },
+  'comoros': { iso: 'COM', rel: 535790 },
+  'congo': { iso: 'COG', rel: 192794 },         // Republic of Congo (Brazzaville)
+  'republic of congo': { iso: 'COG', rel: 192794 },
+  'congo-brazzaville': { iso: 'COG', rel: 192794 },
+  'drc': { iso: 'COD', rel: 192795 },           // Democratic Republic of Congo (Kinshasa)
+  'democratic republic of congo': { iso: 'COD', rel: 192795 },
+  'congo-kinshasa': { iso: 'COD', rel: 192795 },
+  'dr congo': { iso: 'COD', rel: 192795 },
+  'djibouti': { iso: 'DJI', rel: 192797 },
+  'egypt': { iso: 'EGY', rel: 1473947 },
+  'equatorial guinea': { iso: 'GNQ', rel: 192791 },
+  'eritrea': { iso: 'ERI', rel: 296961 },
+  'eswatini': { iso: 'SWZ', rel: 88210 },
+  'swaziland': { iso: 'SWZ', rel: 88210 },
+  'ethiopia': { iso: 'ETH', rel: 192800 },
+  'gabon': { iso: 'GAB', rel: 192793 },
+  'gambia': { iso: 'GMB', rel: 192776 },
+  'the gambia': { iso: 'GMB', rel: 192776 },
+  'ghana': { iso: 'GHA', rel: 192781 },
+  'guinea': { iso: 'GIN', rel: 192778 },
+  'guinea-bissau': { iso: 'GNB', rel: 192773 },
+  'ivory coast': { iso: 'CIV', rel: 192779 },
+  "côte d'ivoire": { iso: 'CIV', rel: 192779 },
+  "cote d'ivoire": { iso: 'CIV', rel: 192779 },
+  'kenya': { iso: 'KEN', rel: 192798 },
+  'lesotho': { iso: 'LSO', rel: 2093234 },
+  'liberia': { iso: 'LBR', rel: 192780 },
+  'libya': { iso: 'LBY', rel: 192758 },
+  'madagascar': { iso: 'MDG', rel: 447325 },
+  'malawi': { iso: 'MWI', rel: 195290 },
+  'mali': { iso: 'MLI', rel: 192785 },
+  'mauritania': { iso: 'MRT', rel: 192763 },
+  'mauritius': { iso: 'MUS', rel: 535828 },
+  'morocco': { iso: 'MAR', rel: 3630439 },
+  'mozambique': { iso: 'MOZ', rel: 195273 },
+  'namibia': { iso: 'NAM', rel: 195266 },
+  'niger': { iso: 'NER', rel: 192786 },
+  'nigeria': { iso: 'NGA', rel: 192787 },
+  'rwanda': { iso: 'RWA', rel: 171496 },
+  'sao tome and principe': { iso: 'STP', rel: 535880 },
+  'senegal': { iso: 'SEN', rel: 192775 },
+  'sierra leone': { iso: 'SLE', rel: 192777 },
+  'somalia': { iso: 'SOM', rel: 164477 },
+  'south africa': { iso: 'ZAF', rel: 87565 },
+  'south sudan': { iso: 'SSD', rel: 1656678 },
+  'sudan': { iso: 'SDN', rel: 192789 },
+  'tanzania': { iso: 'TZA', rel: 195270 },
+  'togo': { iso: 'TGO', rel: 192782 },
+  'tunisia': { iso: 'TUN', rel: 192757 },
+  'uganda': { iso: 'UGA', rel: 192796 },
+  'western sahara': { iso: 'ESH', rel: 5441968 }, // SADR / occupied by Morocco
+  'zambia': { iso: 'ZMB', rel: 195271 },
+  'zimbabwe': { iso: 'ZWE', rel: 195272 },
+
+  // ═══════════════════════════
+  // AMERICAS
+  // ═══════════════════════════
+  'antigua and barbuda': { iso: 'ATG', rel: 536900 },
+  'antigua': { iso: 'ATG', rel: 536900 },
+  'argentina': { iso: 'ARG', rel: 286393 },
+  'bahamas': { iso: 'BHS', rel: 547469 },
+  'barbados': { iso: 'BRB', rel: 547511 },
+  'belize': { iso: 'BLZ', rel: 287827 },
+  'bolivia': { iso: 'BOL', rel: 252645 },
+  'brazil': { iso: 'BRA', rel: 59470 },
+  'canada': { iso: 'CAN', rel: 1428125 },
+  'chile': { iso: 'CHL', rel: 167454 },
+  'colombia': { iso: 'COL', rel: 120027 },
+  'costa rica': { iso: 'CRI', rel: 287926 },
+  'cuba': { iso: 'CUB', rel: 307833 },
+  'dominica': { iso: 'DMA', rel: 550970 },
+  'dominican republic': { iso: 'DOM', rel: 307828 },
+  'ecuador': { iso: 'ECU', rel: 108089 },
+  'el salvador': { iso: 'SLV', rel: 1520612 },
+  'grenada': { iso: 'GRD', rel: 550978 },
+  'guatemala': { iso: 'GTM', rel: 1521463 },
+  'guyana': { iso: 'GUY', rel: 287083 },
+  'haiti': { iso: 'HTI', rel: 307829 },
+  'honduras': { iso: 'HND', rel: 287665 },
+  'jamaica': { iso: 'JAM', rel: 555717 },
+  'mexico': { iso: 'MEX', rel: 114686 },
+  'nicaragua': { iso: 'NIC', rel: 287666 },
+  'panama': { iso: 'PAN', rel: 287668 },
+  'paraguay': { iso: 'PRY', rel: 287077 },
+  'peru': { iso: 'PER', rel: 288247 },
+  'saint kitts and nevis': { iso: 'KNA', rel: 536899 },
+  'saint lucia': { iso: 'LCA', rel: 550910 },
+  'saint vincent': { iso: 'VCT', rel: 550921 },
+  'saint vincent and the grenadines': { iso: 'VCT', rel: 550921 },
+  'suriname': { iso: 'SUR', rel: 287082 },
+  'trinidad and tobago': { iso: 'TTO', rel: 555718 },
+  'trinidad': { iso: 'TTO', rel: 555718 },
+  'uruguay': { iso: 'URY', rel: 287072 },
+  'usa': { iso: 'USA', rel: 148838 },
+  'united states': { iso: 'USA', rel: 148838 },
+  'us': { iso: 'USA', rel: 148838 },
+  'america': { iso: 'USA', rel: 148838 },
+  'venezuela': { iso: 'VEN', rel: 272644 },
+
+  // US sub-national (kept from original)
+  'texas': { iso: 'USA', rel: 114690 },
+  'california': { iso: 'USA', rel: 61965 },
+  'new york': { iso: 'USA', rel: 61320 },
+  'florida': { iso: 'USA', rel: 162050 },
+  'quebec': { iso: 'CAN', rel: 61549 },
+  'ontario': { iso: 'CAN', rel: 68841 },
+
+  // ═══════════════════════════
+  // OCEANIA
+  // ═══════════════════════════
+  'australia': { iso: 'AUS', rel: 80500 },
+  'cook islands': { iso: 'COK', rel: 2184233 },
+  'fiji': { iso: 'FJI', rel: 571747 },
+  'kiribati': { iso: 'KIR', rel: 571178 },
+  'marshall islands': { iso: 'MHL', rel: 571771 },
+  'micronesia': { iso: 'FSM', rel: 571802 },
+  'nauru': { iso: 'NRU', rel: 571805 },
+  'new zealand': { iso: 'NZL', rel: 556706 },
+  'niue': { iso: 'NIU', rel: 1558556 },
+  'palau': { iso: 'PLW', rel: 1041559 },
+  'papua new guinea': { iso: 'PNG', rel: 307866 },
+  'png': { iso: 'PNG', rel: 307866 },
+  'samoa': { iso: 'WSM', rel: 1872673 },
+  'solomon islands': { iso: 'SLB', rel: 1857436 },
+  'tonga': { iso: 'TON', rel: 2186458 },
+  'tuvalu': { iso: 'TUV', rel: 2177266 },
+  'vanuatu': { iso: 'VUT', rel: 1143258 },
+};
+
+// ─────────────────────────────────────────────────────────
+// SCREEN MANAGEMENT
+// ─────────────────────────────────────────────────────────
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function setProgress(pct, msg) {
+  document.getElementById('loading-bar').style.width = pct + '%';
+  document.getElementById('loading-status').textContent = msg;
+}
+
+// ─────────────────────────────────────────────────────────
+// INITIAL LOAD
+// ─────────────────────────────────────────────────────────
+async function init() {
+  setProgress(100, 'Ready!');
+  showScreen('screen-setup');
+}
+
+// ─────────────────────────────────────────────────────────
+// SETUP
+// ─────────────────────────────────────────────────────────
+const MODE_NOTES = {
+  fast:   '⚡ Fast mode — heuristic stats, no AI wait. Best for large battles (10+ nations).',
+  auto:   '⚙ AI mode — LaMini generates stats per region. Slow for large battles.',
+  manual: '✎ Manual mode — fill in stats yourself before battle begins.',
+};
+window.selectMode = function(mode) {
+  statsMode = mode;
+  ['fast','auto','manual'].forEach(m =>
+    document.getElementById('btn-' + m).classList.toggle('selected', m === mode)
+  );
+  document.getElementById('mode-note').textContent = MODE_NOTES[mode] || '';
+};
+
+window.beginSetup = async function() {
+  const raw = document.getElementById('nations-input').value;
+  const names = raw.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+  if (names.length < 2) { alert('Please enter at least 2 nations.'); return; }
+
+  document.getElementById('btn-begin').disabled = true;
+  showScreen('screen-loading');
+  setProgress(0, 'Resolving nation names...');
+
+  const resolvedNations = await resolveNations(names);
+  setProgress(15, 'Fetching subdivision polygons from OpenStreetMap...');
+
+  await fetchAllPolygons(resolvedNations);
+  setProgress(70, 'Assigning stats...');
+
+  for (const n of resolvedNations) {
+    if (n.subdivisions.length === 1 && n.subdivisions[0].id === n.id + '_main') {
+      await generateAISubdivisions(n);
+    }
+  }
+
+  if (statsMode === 'fast') {
+    for (const n of resolvedNations) {
+      for (const sd of n.subdivisions) {
+        sd.stats = heuristicStats(sd.name, n.label);
+      }
+    }
+  } else {
+    for (const n of resolvedNations) {
+      for (const sd of n.subdivisions) {
+        sd.stats = { military: 50, population: 500000, naval: false, landlocked: false };
+      }
+    }
+  }
+  setProgress(100, 'Done!');
+
+  await delay(200);
+  buildStatEditor(resolvedNations);
+  showScreen('screen-stats');
+};
+
+// ─────────────────────────────────────────────────────────
+// NAME RESOLUTION
+// ─────────────────────────────────────────────────────────
+async function resolveNations(names) {
+  return Promise.all(names.map(async (name, i) => {
+    const key = name.toLowerCase().trim();
+    let osmRelId = null, isoCode = null, displayName = name;
+
+    if (COUNTRY_OSM[key]) {
+      osmRelId = COUNTRY_OSM[key].rel;
+      isoCode  = COUNTRY_OSM[key].iso;
+      displayName = name.charAt(0).toUpperCase() + name.slice(1);
+    } else {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(name)}&format=json&limit=3`
+        );
+        const data = await res.json();
+        const rel = data.find(d => d.osm_type === 'relation') || data[0];
+        if (rel && rel.osm_type === 'relation') {
+          osmRelId = parseInt(rel.osm_id);
+          displayName = rel.display_name.split(',')[0];
+        }
+      } catch(e) { console.warn('Nominatim failed for', name); }
+    }
+
+    return {
+      id: 'nation_' + i,
+      label: displayName,
+      color: NATION_COLORS[i % NATION_COLORS.length],
+      osmRelId,
+      isoCode,
+      isRegion: COUNTRY_OSM[key]?.isRegion || false,
+      subdivisions: [],
+      alive: true,
+      allianceIds: []
+    };
+  }));
+}
+
+// ─────────────────────────────────────────────────────────
+// POLYGON FETCHING
+// ─────────────────────────────────────────────────────────
+
+// Admin levels to try per ISO code
+const SUBDIV_ADMIN_LEVELS = {
+  // Large federal/unitary states
+  USA: [4], CAN: [4], AUS: [4], RUS: [4], CHN: [4], IND: [4], BRA: [4],
+  MEX: [4], ARG: [4], DEU: [4], ESP: [4], ITA: [4], FRA: [6],
+  GBR: [6], IRL: [6],
+  // Europe
+  POL: [4], ROU: [4], BGR: [4], GRC: [4], HUN: [4], CZE: [4],
+  SVK: [4], AUT: [4], CHE: [4], BEL: [4], NLD: [4], PRT: [4],
+  SWE: [4], NOR: [4], FIN: [4], DNK: [5], LTU: [4], LVA: [4],
+  EST: [4], BLR: [4], UKR: [4], MDA: [4], SRB: [4], HRV: [4],
+  BIH: [4], MNE: [4], ALB: [4], MKD: [4], SVN: [4],
+  GEO: [4], ARM: [4], AZE: [4],
+  // Asia
+  JPN: [4], KOR: [4], PRK: [4], TWN: [4], MNG: [4],
+  TUR: [4], IRN: [4], IRQ: [4], SAU: [4], SYR: [4],
+  YEM: [4], JOR: [4], PAK: [4], BGD: [4], NPL: [4],
+  IDN: [4], PHL: [4], VNM: [4], THA: [4], MMR: [4],
+  MYS: [4], KAZ: [4], UZB: [4], TJK: [4], KGZ: [4], TKM: [4],
+  AFG: [4], LKA: [4],
+  // Africa
+  NGA: [4], EGY: [4], ETH: [4], ZAF: [4], TZA: [4], KEN: [4],
+  DZA: [4], SDN: [4], MAR: [4], AGO: [4], MOZ: [4], ZMB: [4],
+  ZWE: [4], CMR: [4], MDG: [4], UGA: [4], MLI: [4], BFA: [4],
+  NER: [4], TCD: [4], GHA: [4], SEN: [4], CIV: [4], SSD: [4],
+  // Americas
+  COL: [4], VEN: [4], PER: [4], CHL: [4], BOL: [4], PRY: [4],
+  URY: [4], ECU: [4], GTM: [4], CUB: [4],
+  // Oceania
+  NZL: [4], PNG: [4],
+};
+const DEFAULT_LEVELS = [4, 6];
+
+async function fetchAllPolygons(nations) {
+  let done = 0;
+  await Promise.all(nations.map(async (nation) => {
+    try {
+      await fetchNationPolygons(nation);
+    } catch(e) {
+      console.warn('Polygon fetch failed for', nation.label, e);
+      nation.subdivisions = [{
+        id: nation.id + '_main', nationId: nation.id, name: nation.label,
+        geojson: null, stats: { military: 50, population: 1000000, naval: false, landlocked: false }
+      }];
+    }
+    done++;
+    setProgress(15 + (done / nations.length) * 50, `Fetched ${done}/${nations.length} nations...`);
+  }));
+}
+
+async function fetchNationPolygons(nation) {
+  if (!nation.osmRelId) {
+    nation.subdivisions = [{
+      id: nation.id + '_main', nationId: nation.id, name: nation.label,
+      geojson: null, stats: { military: 50, population: 1000000, naval: false, landlocked: false }
+    }];
+    return;
+  }
+
+  const levels = nation.isRegion
+    ? []
+    : (SUBDIV_ADMIN_LEVELS[nation.isoCode] || DEFAULT_LEVELS);
+
+  let childRelations = [];
+  for (const level of levels) {
+    childRelations = await fetchChildRelationIds(nation.osmRelId, level);
+    if (childRelations.length > 0) break;
+  }
+
+  if (childRelations.length > 30) childRelations = childRelations.slice(0, 30);
+
+  if (childRelations.length === 0) {
+    const geojson = await fetchRelationGeoJSON(nation.osmRelId);
+    nation.subdivisions = [{
+      id: 'sd_' + nation.osmRelId, nationId: nation.id, originalNationId: nation.id,
+      name: nation.label, geojson,
+      stats: { military: 50, population: 1000000, naval: false, landlocked: false }
+    }];
+    return;
+  }
+
+  nation.subdivisions = [];
+  const BATCH = 5;
+  for (let i = 0; i < childRelations.length; i += BATCH) {
+    const batch = childRelations.slice(i, i + BATCH);
+    const results = await Promise.all(batch.map(async (rel) => {
+      const geojson = await fetchRelationGeoJSON(rel.id);
+      return {
+        id: 'sd_' + rel.id, nationId: nation.id, originalNationId: nation.id,
+        name: rel.name, geojson,
+        stats: { military: 50, population: 500000, naval: false, landlocked: false }
+      };
+    }));
+    nation.subdivisions.push(...results);
+  }
+
+  if (nation.subdivisions.length === 0) {
+    nation.subdivisions = [{
+      id: nation.id + '_main', nationId: nation.id, name: nation.label,
+      geojson: null, stats: { military: 50, population: 1000000, naval: false, landlocked: false }
+    }];
+  }
+}
+
+async function fetchChildRelationIds(parentRelId, adminLevel) {
+  const query = `[out:json][timeout:30];
+relation(${parentRelId});
+relation(r)[admin_level="${adminLevel}"]["boundary"="administrative"];
+out tags qt 60;`;
+  try {
+    const data = await overpassFetch(query);
+    if (data.elements && data.elements.length > 0) {
+      return data.elements.map(el => ({
+        id: el.id,
+        name: el.tags?.['name:en'] || el.tags?.name || `Region ${el.id}`
+      }));
+    }
+  } catch(e) {
+    console.warn(`Overpass member query failed (rel ${parentRelId}, level ${adminLevel}):`, e);
+  }
+
+  const areaId = parentRelId + 3600000000;
+  const isoQuery = `[out:json][timeout:30];
+area(${areaId})->.p;
+relation(area.p)[admin_level="${adminLevel}"]["boundary"="administrative"]["ISO3166-2"];
+out tags qt 60;`;
+  try {
+    const data2 = await overpassFetch(isoQuery);
+    if (data2.elements && data2.elements.length > 0) {
+      const firstIso = data2.elements[0].tags?.['ISO3166-2'] || '';
+      const prefix = firstIso.split('-')[0] + '-';
+      const filtered = data2.elements.filter(el => {
+        const iso = el.tags?.['ISO3166-2'] || '';
+        return iso.startsWith(prefix);
+      });
+      if (filtered.length > 0) {
+        return filtered.map(el => ({
+          id: el.id,
+          name: el.tags?.['name:en'] || el.tags?.name || `Region ${el.id}`
+        }));
+      }
+      return data2.elements.map(el => ({
+        id: el.id,
+        name: el.tags?.['name:en'] || el.tags?.name || `Region ${el.id}`
+      }));
+    }
+  } catch(e) {
+    console.warn(`Overpass ISO fallback failed (rel ${parentRelId}, level ${adminLevel}):`, e);
+  }
+
+  return [];
+}
+
+async function fetchRelationGeoJSON(relId) {
+  const cacheKey = 'osm_geojson_' + relId;
+  try {
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) return JSON.parse(cached);
+  } catch(e) {}
+
+  try {
+    const url = `https://polygons.openstreetmap.fr/get_geojson.py?id=${relId}&params=0`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json();
+    let feature = null;
+    if (data.type === 'FeatureCollection' && data.features?.length > 0) feature = data.features[0];
+    else if (data.type === 'Feature') feature = data;
+    else if (data.type === 'Polygon' || data.type === 'MultiPolygon') feature = { type: 'Feature', geometry: data, properties: {} };
+
+    if (feature) {
+      try { localStorage.setItem(cacheKey, JSON.stringify(feature)); } catch(e) {}
+    }
+    return feature;
+  } catch(e) {
+    console.warn(`GeoJSON fetch failed for relation ${relId}:`, e);
+    return null;
+  }
+}
+
+async function overpassFetch(query) {
+  const mirrors = [
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://overpass-api.de/api/interpreter',
+  ];
+  for (const url of mirrors) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        body: 'data=' + encodeURIComponent(query),
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+      });
+      if (res.ok) return res.json();
+    } catch(e) {
+      console.warn('Overpass mirror failed:', url, e);
+    }
+  }
+  return { elements: [] };
+}
+
+// ─────────────────────────────────────────────────────────
+// AI SUBDIVISION GENERATION
+// ─────────────────────────────────────────────────────────
+const HISTORICAL_SUBDIVISIONS = {
+  'roman empire': ['Italia','Gaul','Hispania','Aegyptus','Britannia','Germania Superior','Thracia','Asia Minor','Syria','Africa Proconsularis','Pannonia','Dacia'],
+  'holy roman empire': ['Bavaria','Saxony','Bohemia','Burgundy','Swabia','Franconia','Thuringia','Brandenburg','Austria','Lorraine'],
+  'mongol empire': ['Mongolia','Persia','Kipchak Steppe','China','Central Asia','Kievan Rus','Anatolia'],
+  'ottoman empire': ['Anatolia','Rumelia','Egypt','Syria','Iraq','Arabia','Bulgaria','Serbia','Hungary','Algeria','Tunisia'],
+  'british empire': ['England','Scotland','Wales','Ireland','India','Canada','Australia','South Africa','Nigeria','Egypt','Burma'],
+  'byzantine empire': ['Constantinople','Anatolia','Greece','Bulgaria','Syria','Egypt','Sicily','Calabria','Crimea'],
+  'persian empire': ['Persia','Media','Babylonia','Lydia','Egypt','Bactria','Sogdiana','India','Armenia','Cappadocia'],
+  'mali empire': ['Mali','Songhai','Timbuktu','Kanem','Ghana','Senegambia','Air','Taghaza','Bambuk','Tekrur'],
+  'great song': ['Jiangnan','Sichuan','Fujian','Guangdong','Zhejiang','Jiangxi','Hunan','Hubei','Hebei','Shandong'],
+  'han dynasty': ['Guanzhong','Hebei','Shandong','Jiangnan','Sichuan','Yunnan','Liaodong','Korea','Vietnam','Sogdiana'],
+  'viking age': ['Norway','Denmark','Sweden','Iceland','Faroe Islands','Orkney','Normandy','Dublin','Novgorod'],
+  'aztec empire': ['Tenochtitlan','Texcoco','Tlacopan','Tlaxcala','Oaxaca','Veracruz','Michoacan','Guerrero'],
+  'inca empire': ['Cusco','Quito','Tiwanaku','Huanuco Pampa','Vilcashuaman','Tambo Colorado','Chinchasuyu','Collasuyu'],
+  'napoleon': ['France','Belgium','Holland','Rhineland','Italy','Spain','Poland','Illyria','Westphalia'],
+  'ussr': ['Russia','Ukraine','Belarus','Kazakhstan','Uzbekistan','Georgia','Armenia','Azerbaijan','Moldova','Lithuania','Latvia','Estonia'],
+  'third reich': ['Prussia','Bavaria','Rhineland','Austria','Sudetenland','Alsace','Lorraine'],
+};
+
+async function generateAISubdivisions(nation) {
+  const key = nation.label.toLowerCase().trim();
+
+  for (const [pattern, subdivNames] of Object.entries(HISTORICAL_SUBDIVISIONS)) {
+    if (key.includes(pattern) || pattern.includes(key)) {
+      nation.subdivisions = subdivNames.map((name, i) => ({
+        id: nation.id + '_sd_' + i,
+        nationId: nation.id,
+        originalNationId: nation.id,
+        name,
+        geojson: null,
+        stats: { military: 40, population: 500000, naval: false, landlocked: false }
+      }));
+      return;
+    }
+  }
+
+  if (!qwenPipe) {
+    const generic = ['Northern Region','Southern Region','Eastern Province','Western Province','Central Territory','Coastal Domain','Highland District','River Delta'];
+    nation.subdivisions = generic.map((name, i) => ({
+      id: nation.id + '_sd_' + i,
+      nationId: nation.id,
+      originalNationId: nation.id,
+      name,
+      geojson: null,
+      stats: { military: 40, population: 500000, naval: false, landlocked: false }
+    }));
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// HEURISTIC STATS (Fast Mode)
+// ─────────────────────────────────────────────────────────
+const COASTAL_KEYWORDS = ['coast','sea','bay','port','atlantic','pacific','mediterranean','north sea','baltic','black sea','adriatic','aegean','tyrrhenian','ligurian','ionian','channel','strait','gulf','fjord','island','isle','littoral','maritime','naval','ocean','marine'];
+const LANDLOCKED_KEYWORDS = ['inland','central','interior','highland','mountain','plateau','steppe','desert','continental'];
+const MILITARY_BOOSTS = {
+  high: ['prussia','sparta','rome','normandy','castile','flanders','saxony','bavaria','lombardy','gurkha','carthage'],
+  low: ['luxembourg','andorra','monaco','liechtenstein','san marino','vatican','nauru','tuvalu','palau']
+};
+
+function heuristicStats(regionName, parentName) {
+  const key = (regionName + ' ' + (parentName || '')).toLowerCase();
+  const naval = COASTAL_KEYWORDS.some(w => key.includes(w));
+  const landlocked = !naval && LANDLOCKED_KEYWORDS.some(w => key.includes(w));
+
+  let military = 35 + Math.floor(Math.random() * 30);
+  if (MILITARY_BOOSTS.high.some(w => key.includes(w))) military = Math.min(100, military + 20);
+  if (MILITARY_BOOSTS.low.some(w => key.includes(w))) military = Math.max(5, military - 20);
+  if (naval) military = Math.min(100, military + 8);
+
+  const population = Math.round((1000000 + Math.random() * 8000000) / 100000) * 100000;
+
+  return { military, population, naval, landlocked, aiGenerated: false };
+}
+
+// ─────────────────────────────────────────────────────────
+// STAT EDITOR
+// ─────────────────────────────────────────────────────────
+function buildStatEditor(nations) {
+  gameState.nations = nations.map(n => ({
+    ...n,
+    subdivs: n.subdivisions.map(s => s.id),
+    alliances: new Set()
+  }));
+  gameState.subdivisions = nations.flatMap(n => n.subdivisions);
+  gameState.totalSubdivs = gameState.subdivisions.length;
+
+  const tbody = document.getElementById('stat-tbody');
+  tbody.innerHTML = '';
+
+  for (const nation of nations) {
+    const nrow = document.createElement('tr');
+    nrow.className = 'nation-row';
+    nrow.innerHTML = `
+      <td><span class="nation-color-dot" style="background:${nation.color}"></span><strong>${nation.label}</strong></td>
+      <td colspan="4" style="color:var(--text-dim);font-style:italic;font-size:0.85rem;">
+        ${nation.subdivisions.length} subdivisions${statsMode === 'auto' ? ' <span class="ai-badge">AI</span>' : ''}
+      </td>`;
+    tbody.appendChild(nrow);
+
+    for (const sd of nation.subdivisions) {
+      const row = document.createElement('tr');
+      row.className = 'subdiv-row';
+      row.dataset.sdId = sd.id;
+      row.innerHTML = `
+        <td>${sd.name}${sd.stats.aiGenerated ? ' <span class="ai-badge">AI</span>' : ''}</td>
+        <td><input class="stat-input" type="number" min="0" max="100" value="${sd.stats.military}" data-field="military" data-sdid="${sd.id}"></td>
+        <td><input class="stat-input" type="number" min="0" value="${sd.stats.population}" data-field="population" data-sdid="${sd.id}" style="width:110px"></td>
+        <td><input class="bool-check" type="checkbox" ${sd.stats.naval ? 'checked' : ''} data-field="naval" data-sdid="${sd.id}"></td>
+        <td><input class="bool-check" type="checkbox" ${sd.stats.landlocked ? 'checked' : ''} data-field="landlocked" data-sdid="${sd.id}"></td>`;
+      tbody.appendChild(row);
+    }
+  }
+
+  tbody.addEventListener('input', e => {
+    const el = e.target;
+    const sdId = el.dataset.sdid;
+    const field = el.dataset.field;
+    if (!sdId || !field) return;
+    const sd = gameState.subdivisions.find(s => s.id === sdId);
+    if (!sd) return;
+    if (el.type === 'checkbox') sd.stats[field] = el.checked;
+    else sd.stats[field] = el.type === 'number' ? parseFloat(el.value) || 0 : el.value;
+  });
+
+  if (statsMode === 'manual') {
+    document.getElementById('stats-header-note').textContent = 'Fill in stats for each region before battle begins.';
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// GAME START
+// ─────────────────────────────────────────────────────────
+window.startGame = function() {
+  showScreen('screen-game');
+  initMap();
+  renderNationsList();
+  document.getElementById('round-badge').textContent = 'Round 0';
+};
+
+function initMap() {
+  if (map) { map.remove(); map = null; }
+  map = L.map('map', { zoomControl: true, attributionControl: false }).setView([30, 10], 2);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 18
+  }).addTo(map);
+
+  leafletLayers = {};
+  for (const sd of gameState.subdivisions) {
+    if (!sd.geojson) continue;
+    const nation = gameState.nations.find(n => n.id === sd.nationId);
+    try {
+      const layer = L.geoJSON(sd.geojson, {
+        style: {
+          fillColor: nation?.color || '#888',
+          fillOpacity: 0.65,
+          color: '#fff',
+          weight: 0.5
+        }
+      }).addTo(map);
+      layer.bindTooltip(sd.name + '<br><small>' + (nation?.label || '') + '</small>', { sticky: true });
+      leafletLayers[sd.id] = layer;
+    } catch(e) { console.warn('Layer render failed:', sd.name, e); }
+  }
+
+  const bounds = [];
+  for (const layer of Object.values(leafletLayers)) {
+    try { bounds.push(layer.getBounds()); } catch(e) {}
+  }
+  if (bounds.length > 0) {
+    const combined = bounds.reduce((acc, b) => acc.extend(b));
+    map.fitBounds(combined, { padding: [20, 20] });
+  }
+}
+
+// Pending style updates — flushed together on next animation frame
+let _pendingStyleUpdates = {};
+let _rafScheduled = false;
+
+function scheduleStyleFlush() {
+  if (_rafScheduled) return;
+  _rafScheduled = true;
+  requestAnimationFrame(() => {
+    _rafScheduled = false;
+    for (const [sdId, style] of Object.entries(_pendingStyleUpdates)) {
+      const layer = leafletLayers[sdId];
+      if (layer) layer.setStyle(style);
+    }
+    _pendingStyleUpdates = {};
+  });
+}
+
+function colorSubdivision(sdId, nationId) {
+  const nation = gameState.nations.find(n => n.id === nationId);
+  const color = nation ? nation.color : '#444';
+  _pendingStyleUpdates[sdId] = { fillColor: color, fillOpacity: nation ? 0.65 : 0.2 };
+  scheduleStyleFlush();
+}
+
+function flashAndColorSubdivisions(sdIds, nationId) {
+  const nation = gameState.nations.find(n => n.id === nationId);
+  const finalColor = nation ? nation.color : '#444';
+
+  // Flash white briefly, then settle to new color
+  for (const sdId of sdIds) {
+    const layer = leafletLayers[sdId];
+    if (!layer) continue;
+    layer.setStyle({ fillColor: '#ffffff', fillOpacity: 0.9, weight: 2, color: '#fff' });
+  }
+
+  setTimeout(() => {
+    for (const sdId of sdIds) {
+      _pendingStyleUpdates[sdId] = { fillColor: finalColor, fillOpacity: 0.75, weight: 1.5, color: '#fff' };
+    }
+    scheduleStyleFlush();
+  }, 180);
+
+  setTimeout(() => {
+    for (const sdId of sdIds) {
+      _pendingStyleUpdates[sdId] = { fillColor: finalColor, fillOpacity: 0.65, weight: 0.5, color: '#fff' };
+    }
+    scheduleStyleFlush();
+  }, 500);
+}
+
+function panToNations(nations) {
+  if (!map) return;
+  const bounds = [];
+  for (const nation of nations) {
+    const sdIds = gameState.subdivisions
+      .filter(s => s.nationId === nation.id)
+      .map(s => s.id);
+    for (const sdId of sdIds) {
+      const layer = leafletLayers[sdId];
+      if (layer) {
+        try { bounds.push(layer.getBounds()); } catch(e) {}
+      }
+    }
+  }
+  if (bounds.length === 0) return;
+  try {
+    const combined = bounds.reduce((acc, b) => acc.extend(b));
+    map.flyToBounds(combined, { padding: [40, 40], maxZoom: 6, duration: 0.6 });
+  } catch(e) {}
+}
+// ─────────────────────────────────────────────────────────
+function renderNationsList() {
+  const list = document.getElementById('nations-list');
+  list.innerHTML = '';
+  const alive = gameState.nations.filter(n => n.alive);
+  const dead = gameState.nations.filter(n => !n.alive);
+
+  for (const n of [...alive, ...dead]) {
+    const mySubdivs = gameState.subdivisions.filter(s => s.nationId === n.id).length;
+    const pct = gameState.totalSubdivs > 0 ? (mySubdivs / gameState.totalSubdivs) * 100 : 0;
+    const card = document.createElement('div');
+    card.className = 'nation-card' + (n.alive ? '' : ' eliminated');
+    card.id = 'ncard_' + n.id;
+    card.innerHTML = `
+      <div class="nation-swatch" style="background:${n.color}"></div>
+      <div class="nation-info">
+        <div class="nation-name">${n.label}</div>
+        <div class="nation-stats-mini">${mySubdivs} region${mySubdivs !== 1 ? 's' : ''} · Mil: ${getNationMilitary(n.id)}</div>
+        <div class="nation-territory-bar">
+          <div class="nation-territory-fill" style="width:${pct}%;background:${n.color}"></div>
+        </div>
+      </div>`;
+    list.appendChild(card);
+  }
+
+  renderAlliances();
+}
+
+function getNationMilitary(nationId) {
+  const sds = gameState.subdivisions.filter(s => s.nationId === nationId);
+  if (sds.length === 0) return 0;
+  const avg = sds.reduce((a, s) => a + (s.stats?.military || 0), 0) / sds.length;
+  return Math.round(avg);
+}
+
+function renderAlliances() {
+  const section = document.getElementById('alliances-section');
+  const display = document.getElementById('alliances-display');
+  if (gameState.alliances.length === 0) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+  display.innerHTML = '';
+  for (const alliance of gameState.alliances) {
+    const tag = document.createElement('div');
+    tag.className = 'alliance-tag';
+    const names = alliance.map(id => {
+      const n = gameState.nations.find(x => x.id === id);
+      return `<span style="color:${n?.color}">${n?.label || id}</span>`;
+    }).join(' & ');
+    tag.innerHTML = '🤝 ' + names;
+    display.appendChild(tag);
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// TURN ENGINE
+// ─────────────────────────────────────────────────────────
+window.nextTurn = async function() {
+  const btn = document.getElementById('btn-next-turn');
+  btn.disabled = true;
+  gameState.round++;
+  document.getElementById('round-badge').textContent = 'Round ' + gameState.round;
+
+  const aliveNations = gameState.nations.filter(n => n.alive);
+  if (aliveNations.length <= 1) {
+    showVictory(aliveNations[0]);
+    return;
+  }
+
+  // ── Endgame: purge all alliances when < 5 nations remain ──
+  if (aliveNations.length < 5 && gameState.alliances.length > 0) {
+    gameState.alliances = [];
+    addEvent({ type: 'elimination', text: 'With only a handful of powers remaining, all pacts have collapsed. The final struggle begins.' });
+    renderNationsList();
+  }
+
+  const roll = Math.random();
+  let event;
+
+  // Alliance chance scales with nation count: ~25% at 8+, ~8% at 5, 0% below 5
+  const allianceChance = aliveNations.length >= 5
+    ? Math.min(0.25, (aliveNations.length / gameState.nations.length) * 0.35)
+    : 0;
+
+  // Rebellion only fires if: conquered regions exist, the occupier has ≥3 subdivisions
+  // (so they won't be crippled by losing one), and the original nation has ≥2 of its own regions
+  const validRebellions = gameState.subdivisions.filter(s => {
+    if (s.originalNationId === s.nationId) return false;
+    const occupierSubdivs = gameState.subdivisions.filter(x => x.nationId === s.nationId).length;
+    const originalSubdivs = gameState.subdivisions.filter(x => x.nationId === s.originalNationId).length;
+    const originalAlive = gameState.nations.find(n => n.id === s.originalNationId)?.alive;
+    return occupierSubdivs >= 3 && originalSubdivs >= 2 && originalAlive;
+  });
+  const rebellionChance = validRebellions.length > 0 ? 0.15 : 0;
+
+  if (roll < allianceChance) {
+    event = await doAlliance(aliveNations);
+  } else if (roll < allianceChance + rebellionChance) {
+    event = await doRebellion(validRebellions);
+  } else {
+    event = await doWar(aliveNations);
+  }
+
+  if (event) addEvent(event);
+  renderNationsList();
+  checkEliminations();
+
+  btn.disabled = false;
+};
+
+// ── WAR ──
+async function doWar(aliveNations) {
+  const attacker = weightedRandom(aliveNations, n => getNationMilitary(n.id) + 10);
+
+  const targets = aliveNations.filter(n => n.id !== attacker.id && !areAllied(attacker.id, n.id));
+  if (targets.length === 0) return null;
+  const target = targets[Math.floor(Math.random() * targets.length)];
+
+  const attMil = getNationMilitary(attacker.id) + getAllianceBonus(attacker.id);
+  const defMil = getNationMilitary(target.id) + getAllianceBonus(target.id);
+  const attRoll = attMil * (0.8 + Math.random() * 0.4);
+  const defRoll = defMil * (0.8 + Math.random() * 0.4);
+  const attackerWins = attRoll > defRoll;
+  const ratio = attackerWins ? (attRoll / Math.max(defRoll, 1)).toFixed(1) : (defRoll / Math.max(attRoll, 1)).toFixed(1);
+
+  const targetSubdivs = gameState.subdivisions.filter(s => s.nationId === target.id);
+  const numToTake = Math.max(1, Math.min(3, Math.floor(targetSubdivs.length * 0.2)));
+  let transferred = [];
+
+  if (attackerWins && targetSubdivs.length > 0) {
+    const toTake = targetSubdivs.slice(0, numToTake);
+    for (const sd of toTake) {
+      sd.nationId = attacker.id;
+      transferred.push(sd.name);
+    }
+    flashAndColorSubdivisions(toTake.map(s => s.id), attacker.id);
+    panToNations([attacker, target]);
+  }
+
+  const context = `${attacker.label} attacked ${target.label}. ` +
+    `${attacker.label} strength: ${Math.round(attMil)}, ${target.label} strength: ${Math.round(defMil)}. ` +
+    `${attackerWins ? attacker.label + ' won (ratio ' + ratio + ':1)' : target.label + ' repelled the attack'}. ` +
+    (transferred.length > 0 ? `Regions seized: ${transferred.join(', ')}. ` : '') +
+    `${getNavalContext(attacker, target)}`;
+
+  const event = { type: 'war', text: context };
+  narrateAndUpdate(event, `Major military conflict during a geopolitical battle royale simulation. ${context}`);
+  return event;
+}
+
+function getNavalContext(attacker, target) {
+  const attNaval = gameState.subdivisions.filter(s => s.nationId === attacker.id && s.stats?.naval).length > 0;
+  const defLocked = gameState.subdivisions.filter(s => s.nationId === target.id && s.stats?.landlocked).length > 0;
+  if (attNaval && !defLocked) return `${attacker.label} used naval superiority.`;
+  return '';
+}
+
+// ── ALLIANCE ──
+async function doAlliance(aliveNations) {
+  const shuffled = [...aliveNations].sort(() => Math.random() - 0.5);
+  let a = null, b = null;
+  for (let i = 0; i < shuffled.length; i++) {
+    for (let j = i + 1; j < shuffled.length; j++) {
+      const ni = shuffled[i], nj = shuffled[j];
+      // Only pair nations that aren't already allied AND neither is in an existing alliance
+      // (keeps alliances bilateral — no merging into blocs)
+      const iInAlliance = gameState.alliances.some(al => al.includes(ni.id));
+      const jInAlliance = gameState.alliances.some(al => al.includes(nj.id));
+      if (!areAllied(ni.id, nj.id) && !iInAlliance && !jInAlliance) {
+        a = ni; b = nj; break;
+      }
+    }
+    if (a) break;
+  }
+  if (!a || !b) return null;
+
+  gameState.alliances.push([a.id, b.id]);
+
+  const context = `${a.label} and ${b.label} formed an alliance. They share: ${getSharedContext(a, b)}.`;
+  const event = { type: 'alliance', text: `${a.label} and ${b.label} have formed a pact.` };
+  narrateAndUpdate(event, 'Alliance event: ' + context);
+  return event;
+}
+
+function getSharedContext(a, b) {
+  const aNaval = gameState.subdivisions.filter(s => s.nationId === a.id && s.stats?.naval).length > 0;
+  const bNaval = gameState.subdivisions.filter(s => s.nationId === b.id && s.stats?.naval).length > 0;
+  if (aNaval && bNaval) return 'naval traditions and maritime interests';
+  return 'strategic interests and mutual defense needs';
+}
+
+// ── REBELLION ──
+async function doRebellion(validRebellions) {
+  if (!validRebellions || validRebellions.length === 0) return null;
+
+  const sd = validRebellions[Math.floor(Math.random() * validRebellions.length)];
+  const originalNation = gameState.nations.find(n => n.id === sd.originalNationId);
+  const occupier = gameState.nations.find(n => n.id === sd.nationId);
+
+  if (!originalNation || !originalNation.alive) return null;
+
+  sd.nationId = sd.originalNationId;
+  flashAndColorSubdivisions([sd.id], sd.nationId);
+
+  const context = `${sd.name} rebelled against ${occupier?.label || 'its occupier'} and ` +
+    `rejoined ${originalNation.label}. The uprising was swift and decisive.`;
+  const event = { type: 'rebellion', text: context };
+  narrateAndUpdate(event, 'Rebellion event: ' + context);
+  return event;
+}
+
+// ── HELPERS ──
+function areAllied(idA, idB) {
+  return gameState.alliances.some(al => al.includes(idA) && al.includes(idB));
+}
+
+function getAllianceBonus(nationId) {
+  let bonus = 0;
+  for (const al of gameState.alliances) {
+    if (al.includes(nationId)) {
+      for (const allyId of al) {
+        if (allyId !== nationId) bonus += getNationMilitary(allyId) * 0.15;
+      }
+    }
+  }
+  return bonus;
+}
+
+function weightedRandom(arr, weightFn) {
+  const weights = arr.map(weightFn);
+  const total = weights.reduce((a, b) => a + b, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < arr.length; i++) {
+    r -= weights[i];
+    if (r <= 0) return arr[i];
+  }
+  return arr[arr.length - 1];
+}
+
+function checkEliminations() {
+  for (const nation of gameState.nations) {
+    if (!nation.alive) continue;
+    const mySubdivs = gameState.subdivisions.filter(s => s.nationId === nation.id).length;
+    if (mySubdivs === 0) {
+      nation.alive = false;
+      gameState.alliances = gameState.alliances
+        .map(al => al.filter(id => id !== nation.id))
+        .filter(al => al.length >= 2);
+      addEvent({ type: 'elimination', text: `${nation.label} has been eliminated from the battle.` });
+    }
+  }
+
+  const alive = gameState.nations.filter(n => n.alive);
+  if (alive.length === 1) showVictory(alive[0]);
+}
+
+// ─────────────────────────────────────────────────────────
+// EVENT SUMMARIES — template-based, always correct, instant
+// ─────────────────────────────────────────────────────────
+function summariseWar(attacker, target, attackerWins, attMil, defMil, ratio, transferred, navalNote) {
+  const attStr = Math.round(attMil);
+  const defStr = Math.round(defMil);
+  if (attackerWins) {
+    const seizedPart = transferred.length > 0
+      ? ` ${transferred.length === 1 ? transferred[0] : transferred.slice(0, -1).join(', ') + ' and ' + transferred[transferred.length - 1]} ${transferred.length === 1 ? 'was' : 'were'} seized.`
+      : ' No territory changed hands.';
+    const navalPart = navalNote ? ` ${navalNote}` : '';
+    return `${attacker.label} invaded ${target.label}, with a force of ${attStr} against ${defStr}. The assault succeeded with a ${ratio}:1 advantage.${seizedPart}${navalPart}`;
+  } else {
+    return `${attacker.label} attacked ${target.label} (${attStr} vs ${defStr}), but the offensive was repelled. ${target.label} holds its ground.`;
+  }
+}
+
+function summariseAlliance(a, b) {
+  return `${a.label} and ${b.label} have signed a mutual defence pact.`;
+}
+
+function summariseRebellion(sdName, occupierLabel, originalLabel) {
+  return `${sdName} has broken free from ${occupierLabel} and rejoined ${originalLabel}.`;
+}
+
+// ─────────────────────────────────────────────────────────
+// EVENT LOG
+// ─────────────────────────────────────────────────────────
+function addEvent(event) {
+  const log = document.getElementById('event-log');
+  const entry = document.createElement('div');
+  entry._eventRef = event;
+  entry.className = 'event-entry ' + event.type;
+  entry.innerHTML = `
+    <div class="event-type-label">${event.type.toUpperCase()} — Round ${gameState.round}</div>`;
+  const textNode = document.createTextNode(event.text);
+  entry.appendChild(textNode);
+  log.insertBefore(entry, log.firstChild);
+  while (log.children.length > 40) log.removeChild(log.lastChild);
+}
+
+// ─────────────────────────────────────────────────────────
+// VICTORY
+// ─────────────────────────────────────────────────────────
+function showVictory(nation) {
+  clearInterval(autoTimer);
+  document.getElementById('btn-next-turn').disabled = true;
+  const overlay = document.getElementById('victory-overlay');
+  document.getElementById('victory-title').textContent = (nation?.label || 'Unknown') + ' is victorious!';
+  document.getElementById('victory-subtitle').textContent =
+    `After ${gameState.round} rounds, ${nation?.label || 'they'} conquered all territories.`;
+  overlay.classList.add('show');
+}
+
+// ─────────────────────────────────────────────────────────
+// AUTO-ADVANCE
+// ─────────────────────────────────────────────────────────
+window.updateSpeed = function(val) {
+  clearInterval(autoTimer);
+  const delay_ms = speedDelays[parseInt(val)];
+  if (delay_ms > 0) {
+    autoTimer = setInterval(() => {
+      if (!document.getElementById('btn-next-turn').disabled) nextTurn();
+    }, delay_ms);
+  }
+};
+
+// ─────────────────────────────────────────────────────────
+// UTILS
+// ─────────────────────────────────────────────────────────
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ─────────────────────────────────────────────────────────
+// BOOT
+// ─────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
