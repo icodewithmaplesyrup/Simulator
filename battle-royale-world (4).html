@@ -832,36 +832,45 @@ window.beginSetup = async function() {
   showScreen('screen-loading');
   setProgress(0, 'Resolving nation names...');
 
-  const resolvedNations = await resolveNations(names);
-  setProgress(15, 'Fetching subdivision polygons from OpenStreetMap...');
+  try {
+    const resolvedNations = await resolveNations(names);
+    setProgress(15, 'Fetching subdivision polygons from OpenStreetMap...');
 
-  await fetchAllPolygons(resolvedNations);
-  setProgress(70, 'Assigning stats...');
+    await fetchAllPolygons(resolvedNations);
+    setProgress(70, 'Assigning stats...');
 
-  for (const n of resolvedNations) {
-    if (n.subdivisions.length === 1 && n.subdivisions[0].id === n.id + '_main') {
-      await generateAISubdivisions(n);
-    }
-  }
-
-  if (statsMode === 'fast') {
     for (const n of resolvedNations) {
-      for (const sd of n.subdivisions) {
-        sd.stats = heuristicStats(sd.name, n.label);
+      if (!Array.isArray(n.subdivisions) || n.subdivisions.length === 0 || (n.subdivisions.length === 1 && n.subdivisions[0].id === n.id + '_main')) {
+        await generateAISubdivisions(n);
       }
     }
-  } else {
-    for (const n of resolvedNations) {
-      for (const sd of n.subdivisions) {
-        sd.stats = { military: 50, population: 500000, naval: false, landlocked: false };
+
+    if (statsMode === 'fast') {
+      for (const n of resolvedNations) {
+        for (const sd of n.subdivisions) {
+          sd.stats = heuristicStats(sd.name, n.label);
+        }
+      }
+    } else {
+      for (const n of resolvedNations) {
+        for (const sd of n.subdivisions) {
+          sd.stats = { military: 50, population: 500000, naval: false, landlocked: false };
+        }
       }
     }
-  }
-  setProgress(100, 'Done!');
+    setProgress(100, 'Done!');
 
-  await delay(200);
-  buildStatEditor(resolvedNations);
-  showScreen('screen-stats');
+    await delay(200);
+    buildStatEditor(resolvedNations);
+    showScreen('screen-stats');
+  } catch (e) {
+    console.error('Setup failed:', e);
+    setProgress(0, 'Setup failed. Check console and try again.');
+    alert('Setup failed: ' + (e?.message || e));
+    showScreen('screen-setup');
+  } finally {
+    document.getElementById('btn-begin').disabled = false;
+  }
 };
 
 // ─────────────────────────────────────────────────────────
@@ -917,7 +926,9 @@ async function fetchAllPolygons(nations) {
   let done = 0;
   await Promise.all(nations.map(async (nation) => {
     try {
-      await fetchNationPolygons(nation);
+      await fetchNationPolygons(nation, (subdivisionName) => {
+        setProgress(15 + (done / nations.length) * 50, `Loading ${nation.label} subdivision: ${subdivisionName} polygon...`);
+      });
     } catch(e) {
       console.warn('Polygon fetch failed for', nation.label, e);
       nation.subdivisions = [{
@@ -930,7 +941,7 @@ async function fetchAllPolygons(nations) {
   }));
 }
 
-async function fetchNationPolygons(nation) {
+async function fetchNationPolygons(nation, onSubdivisionProgress) {
   if (!nation.osmRelId) {
     nation.subdivisions = [{
       id: nation.id + '_main', nationId: nation.id, name: nation.label,
