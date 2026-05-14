@@ -913,39 +913,6 @@ async function resolveNations(names) {
 // POLYGON FETCHING
 // ─────────────────────────────────────────────────────────
 
-// Admin levels to try per ISO code
-const SUBDIV_ADMIN_LEVELS = {
-  // Large federal/unitary states
-  USA: [4], CAN: [4], AUS: [4], RUS: [4], CHN: [4], IND: [4], BRA: [4],
-  MEX: [4], ARG: [4], DEU: [4], ESP: [4], ITA: [4], FRA: [6],
-  GBR: [6], IRL: [6],
-  // Europe
-  POL: [4], ROU: [4], BGR: [4], GRC: [4], HUN: [4], CZE: [4],
-  SVK: [4], AUT: [4], CHE: [4], BEL: [4], NLD: [4], PRT: [4],
-  SWE: [4], NOR: [4], FIN: [4], DNK: [5], LTU: [4], LVA: [4],
-  EST: [4], BLR: [4], UKR: [4], MDA: [4], SRB: [4], HRV: [4],
-  BIH: [4], MNE: [4], ALB: [4], MKD: [4], SVN: [4],
-  GEO: [4], ARM: [4], AZE: [4],
-  // Asia
-  JPN: [4], KOR: [4], PRK: [4], TWN: [4], MNG: [4],
-  TUR: [4], IRN: [4], IRQ: [4], SAU: [4], SYR: [4],
-  YEM: [4], JOR: [4], PAK: [4], BGD: [4], NPL: [4],
-  IDN: [4], PHL: [4], VNM: [4], THA: [4], MMR: [4],
-  MYS: [4], KAZ: [4], UZB: [4], TJK: [4], KGZ: [4], TKM: [4],
-  AFG: [4], LKA: [4],
-  // Africa
-  NGA: [4], EGY: [4], ETH: [4], ZAF: [4], TZA: [4], KEN: [4],
-  DZA: [4], SDN: [4], MAR: [4], AGO: [4], MOZ: [4], ZMB: [4],
-  ZWE: [4], CMR: [4], MDG: [4], UGA: [4], MLI: [4], BFA: [4],
-  NER: [4], TCD: [4], GHA: [4], SEN: [4], CIV: [4], SSD: [4],
-  // Americas
-  COL: [4], VEN: [4], PER: [4], CHL: [4], BOL: [4], PRY: [4],
-  URY: [4], ECU: [4], GTM: [4], CUB: [4],
-  // Oceania
-  NZL: [4], PNG: [4],
-};
-const DEFAULT_LEVELS = [4, 6];
-
 async function fetchAllPolygons(nations) {
   let done = 0;
   await Promise.all(nations.map(async (nation) => {
@@ -1012,69 +979,32 @@ async function fetchNationPolygons(nation) {
     const results = await Promise.all(batch.map(async (rel) => {
       const geojson = await fetchRelationGeoJSON(rel.id);
       return {
-        id: 'sd_' + rel.id, nationId: nation.id, originalNationId: nation.id,
-        name: rel.name, geojson,
-        stats: { military: 50, population: 500000, naval: false, landlocked: false }
+        id: 'sd_' + sd.relId,
+        nationId: nation.id,
+        originalNationId: nation.id,
+        name: sd.name,
+        geojson,
+        stats: {
+          military: sd.military,
+          population: sd.population,
+          naval: sd.naval,
+          landlocked: sd.landlocked
+        }
       };
     }));
-    nation.subdivisions.push(...results);
+    return;
   }
 
-  if (nation.subdivisions.length === 0) {
-    nation.subdivisions = [{
-      id: nation.id + '_main', nationId: nation.id, name: nation.label,
-      geojson: null, stats: { military: 50, population: 1000000, naval: false, landlocked: false }
-    }];
-  }
-}
-
-async function fetchChildRelationIds(parentRelId, adminLevel) {
-  const query = `[out:json][timeout:30];
-relation(${parentRelId});
-relation(r)[admin_level="${adminLevel}"]["boundary"="administrative"];
-out tags qt 60;`;
-  try {
-    const data = await overpassFetch(query);
-    if (data.elements && data.elements.length > 0) {
-      return data.elements.map(el => ({
-        id: el.id,
-        name: el.tags?.['name:en'] || el.tags?.name || `Region ${el.id}`
-      }));
-    }
-  } catch(e) {
-    console.warn(`Overpass member query failed (rel ${parentRelId}, level ${adminLevel}):`, e);
-  }
-
-  const areaId = parentRelId + 3600000000;
-  const isoQuery = `[out:json][timeout:30];
-area(${areaId})->.p;
-relation(area.p)[admin_level="${adminLevel}"]["boundary"="administrative"]["ISO3166-2"];
-out tags qt 60;`;
-  try {
-    const data2 = await overpassFetch(isoQuery);
-    if (data2.elements && data2.elements.length > 0) {
-      const firstIso = data2.elements[0].tags?.['ISO3166-2'] || '';
-      const prefix = firstIso.split('-')[0] + '-';
-      const filtered = data2.elements.filter(el => {
-        const iso = el.tags?.['ISO3166-2'] || '';
-        return iso.startsWith(prefix);
-      });
-      if (filtered.length > 0) {
-        return filtered.map(el => ({
-          id: el.id,
-          name: el.tags?.['name:en'] || el.tags?.name || `Region ${el.id}`
-        }));
-      }
-      return data2.elements.map(el => ({
-        id: el.id,
-        name: el.tags?.['name:en'] || el.tags?.name || `Region ${el.id}`
-      }));
-    }
-  } catch(e) {
-    console.warn(`Overpass ISO fallback failed (rel ${parentRelId}, level ${adminLevel}):`, e);
-  }
-
-  return [];
+  // Fallback for unsupported nations: fetch the main nation geometry only.
+  const geojson = await fetchRelationGeoJSON(nation.osmRelId);
+  nation.subdivisions = [{
+    id: 'sd_' + nation.osmRelId,
+    nationId: nation.id,
+    originalNationId: nation.id,
+    name: nation.label,
+    geojson,
+    stats: { military: 50, population: 1000000, naval: false, landlocked: false }
+  }];
 }
 
 async function fetchRelationGeoJSON(relId) {
@@ -1102,26 +1032,6 @@ async function fetchRelationGeoJSON(relId) {
     console.warn(`GeoJSON fetch failed for relation ${relId}:`, e);
     return null;
   }
-}
-
-async function overpassFetch(query) {
-  const mirrors = [
-    'https://overpass.kumi.systems/api/interpreter',
-    'https://overpass-api.de/api/interpreter',
-  ];
-  for (const url of mirrors) {
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        body: 'data=' + encodeURIComponent(query),
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-      });
-      if (res.ok) return res.json();
-    } catch(e) {
-      console.warn('Overpass mirror failed:', url, e);
-    }
-  }
-  return { elements: [] };
 }
 
 // ─────────────────────────────────────────────────────────
